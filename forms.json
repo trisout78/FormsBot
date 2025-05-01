@@ -1,0 +1,35 @@
+{
+  "980020785206947890": {
+    "1746132978399": {
+      "title": "Test",
+      "questions": [
+        {
+          "text": "Qui es-tu?",
+          "style": "PARAGRAPH"
+        },
+        {
+          "text": "Pseudo In-Game?",
+          "style": "SHORT"
+        }
+      ],
+      "embedChannelId": "980044251696099398",
+      "responseChannelId": "1066320088514449428",
+      "embedText": "Cliquez sur le bouton ci-dessous pour participer",
+      "buttonLabel": "Répondre",
+      "singleResponse": true,
+      "embedMessageId": "1367605577617903778",
+      "respondents": {
+        "637213291558469663": {
+          "responded": true,
+          "messageId": "1367618049448083507"
+        }
+      },
+      "reviewOptions": {
+        "enabled": true,
+        "acceptMessage": "Votre candidature est acceptée",
+        "rejectMessage": "Votre réponse est refusé",
+        "roleId": "980021514000826459"
+      }
+    }
+  }
+}

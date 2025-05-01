@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FormsBot - Éditeur de formulaire</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #5865F2;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+            box-sizing: border-box;
+        }
+        textarea.question-text {
+            height: 70px;
+            min-height: 50px;
+            resize: vertical;
+        }
+        button {
+            background-color: #5865F2;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #4752C4;
+        }
+        .button-secondary {
+            background-color: #99AAB5;
+        }
+        .button-secondary:hover {
+            background-color: #7A8993;
+        }
+        .button-danger {
+            background-color: #ED4245;
+        }
+        .button-danger:hover {
+            background-color: #D63638;
+        }
+        .button-success {
+            background-color: #57F287;
+            color: #000;
+        }
+        .button-success:hover {
+            background-color: #45C46A;
+        }
+        .questions-container {
+            margin-top: 1rem;
+        }
+        .question-item {
+            background-color: #f9f9f9;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+            position: relative;
+            border-left: 4px solid #5865F2;
+        }
+        .remove-question {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: #ED4245;
+            color: white;
+            border: none;
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+            text-align: center;
+            border-radius: 50%;
+            padding: 0;
+            cursor: pointer;
+        }
+        .btn-group {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .btn-add-question {
+            margin-bottom: 1.5rem;
+        }
+        select.channel-select {
+            width: 100%;
+        }
+        .alert {
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1.5rem;
+            color: white;
+        }
+        .alert-error {
+            background-color: #ED4245;
+        }
+        .alert-success {
+            background-color: #57F287;
+            color: #000;
+        }
+        .hidden {
+            display: none;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 0.5rem;
+        }
+        .checkbox-group label {
+            font-weight: normal;
+            margin-bottom: 0;
+            display: inline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Éditeur de formulaire Discord</h1>
+        
+        <div id="alertBox" class="alert hidden"></div>
+        
+        <div class="form-group">
+            <label for="formTitle">Titre du formulaire</label>
+            <input type="text" id="formTitle" placeholder="Entrez un titre">
+        </div>
+        
+        <div class="form-group">
+            <label>Questions</label>
+            <div id="questionsContainer" class="questions-container">
+                <!-- Les questions seront ajoutées ici -->
+            </div>
+            <button id="btnAddQuestion" class="btn-add-question">+ Ajouter une question</button>
+        </div>
+        
+        <div class="form-group">
+            <label for="embedChannel">Salon pour l'embed</label>
+            <select id="embedChannel" class="channel-select">
+                <option value="">-- Sélectionnez un salon --</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="responseChannel">Salon pour les réponses</label>
+            <select id="responseChannel" class="channel-select">
+                <option value="">-- Sélectionnez un salon --</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="embedText">Texte de l'embed</label>
+            <textarea id="embedText" rows="3" placeholder="Message d'introduction du formulaire"></textarea>
+        </div>
+        
+        <div class="form-group">
+            <label for="buttonLabel">Label du bouton</label>
+            <input type="text" id="buttonLabel" placeholder="Ex: Répondre au formulaire" value="Répondre">
+        </div>
+        
+        <div class="form-group checkbox-group">
+            <input type="checkbox" id="singleResponse">
+            <label for="singleResponse">Limiter à une seule réponse par utilisateur (avec possibilité de supprimer sa réponse)</label>
+        </div>
+        
+        <div class="btn-group">
+            <button id="btnPreview" class="button-secondary">Aperçu</button>
+            <button id="btnSave" class="button-success">Enregistrer le formulaire</button>
+        </div>
+    </div>
+
+    <!-- Template pour une nouvelle question -->
+    <template id="questionTemplate">
+        <div class="question-item">
+            <button class="remove-question">&times;</button>
+            <div class="form-group">
+                <label>Texte de la question</label>
+                <textarea class="question-text" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Type de réponse</label>
+                <select class="question-style">
+                    <option value="SHORT">Réponse courte</option>
+                    <option value="PARAGRAPH">Réponse longue</option>
+                </select>
+            </div>
+        </div>
+    </template>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Récupérer le token de l'URL
+            const pathname = window.location.pathname;
+            const token = pathname.split('/').pop();
+            
+            // Éléments du DOM
+            const questionsContainer = document.getElementById('questionsContainer');
+            const btnAddQuestion = document.getElementById('btnAddQuestion');
+            const btnSave = document.getElementById('btnSave');
+            const btnPreview = document.getElementById('btnPreview');
+            const formTitleInput = document.getElementById('formTitle');
+            const embedChannelSelect = document.getElementById('embedChannel');
+            const responseChannelSelect = document.getElementById('responseChannel');
+            const embedTextInput = document.getElementById('embedText');
+            const buttonLabelInput = document.getElementById('buttonLabel');
+            const alertBox = document.getElementById('alertBox');
+            const singleResponseCheckbox = document.getElementById('singleResponse');
+            
+            // Fonction pour afficher une alerte
+            function showAlert(message, type) {
+                alertBox.textContent = message;
+                alertBox.className = `alert alert-${type}`;
+                setTimeout(() => {
+                    alertBox.className = 'alert hidden';
+                }, 5000);
+            }
+            
+            // Fonction pour ajouter une nouvelle question
+            function addQuestion(text = '', style = 'SHORT') {
+                const template = document.getElementById('questionTemplate');
+                const clone = template.content.cloneNode(true);
+                
+                const questionItem = clone.querySelector('.question-item');
+                const textArea = clone.querySelector('.question-text');
+                const styleSelect = clone.querySelector('.question-style');
+                const removeBtn = clone.querySelector('.remove-question');
+                
+                textArea.value = text;
+                styleSelect.value = style;
+                
+                removeBtn.addEventListener('click', function() {
+                    questionItem.remove();
+                });
+                
+                questionsContainer.appendChild(clone);
+            }
+            
+            // Charger les données du formulaire
+            async function loadFormData() {
+                try {
+                    const response = await fetch(`/api/form/${token}`);
+                    if (!response.ok) {
+                        throw new Error('Impossible de charger les données du formulaire');
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Remplir les champs avec les données du formulaire
+                    formTitleInput.value = data.form.title || '';
+                    embedTextInput.value = data.form.embedText || '';
+                    buttonLabelInput.value = data.form.buttonLabel || 'Répondre';
+                    singleResponseCheckbox.checked = data.form.singleResponse || false;
+                    
+                    // Ajouter les questions
+                    if (data.form.questions && data.form.questions.length > 0) {
+                        data.form.questions.forEach(q => {
+                            addQuestion(q.text, q.style);
+                        });
+                    }
+                    
+                    // Remplir les sélecteurs de salon
+                    if (data.channels && data.channels.length > 0) {
+                        data.channels.forEach(channel => {
+                            const option = document.createElement('option');
+                            option.value = channel.id;
+                            option.textContent = `#${channel.name}`;
+                            
+                            const optionClone = option.cloneNode(true);
+                            
+                            embedChannelSelect.appendChild(option);
+                            responseChannelSelect.appendChild(optionClone);
+                        });
+                        
+                        // Sélectionner les salons si définis
+                        if (data.form.embedChannelId) {
+                            embedChannelSelect.value = data.form.embedChannelId;
+                        }
+                        
+                        if (data.form.responseChannelId) {
+                            responseChannelSelect.value = data.form.responseChannelId;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Erreur:', error);
+                    showAlert('Erreur lors du chargement des données: ' + error.message, 'error');
+                }
+            }
+            
+            // Enregistrer le formulaire
+            async function saveForm() {
+                // Désactiver le bouton pendant la sauvegarde
+                btnSave.disabled = true;
+                const originalText = btnSave.textContent;
+                btnSave.innerHTML = '<span class="loading"></span> Sauvegarde...';
+                
+                try {
+                    // Collecter toutes les questions
+                    const questions = Array.from(questionsContainer.querySelectorAll('.question-item')).map(item => {
+                        return {
+                            text: item.querySelector('.question-text').value,
+                            style: item.querySelector('.question-style').value
+                        };
+                    });
+                    
+                    // Construire l'objet formulaire
+                    const formData = {
+                        title: formTitleInput.value,
+                        questions: questions,
+                        embedChannelId: embedChannelSelect.value,
+                        responseChannelId: responseChannelSelect.value,
+                        embedText: embedTextInput.value,
+                        buttonLabel: buttonLabelInput.value,
+                        singleResponse: singleResponseCheckbox.checked
+                    };
+                    
+                    // Valider les données
+                    if (!formData.title) {
+                        throw new Error('Veuillez saisir un titre pour le formulaire');
+                    }
+                    
+                    if (questions.length === 0) {
+                        throw new Error('Veuillez ajouter au moins une question');
+                    }
+                    
+                    if (!formData.embedChannelId) {
+                        throw new Error('Veuillez sélectionner un salon pour l\'embed');
+                    }
+                    
+                    if (!formData.responseChannelId) {
+                        throw new Error('Veuillez sélectionner un salon pour les réponses');
+                    }
+                    
+                    if (!formData.embedText) {
+                        throw new Error('Veuillez saisir un texte pour l\'embed');
+                    }
+                    
+                    if (!formData.buttonLabel) {
+                        throw new Error('Veuillez saisir un label pour le bouton');
+                    }
+                    
+                    // Envoyer les données au serveur
+                    const response = await fetch(`/api/form/${token}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ form: formData })
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Erreur lors de la sauvegarde');
+                    }
+                    
+                    // Redirection ou message de succès
+                    showAlert('Formulaire enregistré avec succès!', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/success.html';
+                    }, 2000);
+                    
+                } catch (error) {
+                    console.error('Erreur:', error);
+                    showAlert(error.message, 'error');
+                } finally {
+                    // Réactiver le bouton
+                    btnSave.disabled = false;
+                    btnSave.textContent = originalText;
+                }
+            }
+            
+            // Event listeners
+            btnAddQuestion.addEventListener('click', () => addQuestion());
+            
+            btnSave.addEventListener('click', saveForm);
+            
+            btnPreview.addEventListener('click', function() {
+                // Générer un aperçu du formulaire
+                alert('Fonctionnalité d\'aperçu à venir!');
+            });
+            
+            // Chargement initial
+            loadFormData();
+        });
+    </script>
+</body>
+</html>

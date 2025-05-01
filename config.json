@@ -1,0 +1,13 @@
+{
+  "token": "",
+  "clientId": "",
+  "permission": {
+    "base": ":x: You don't have the `{perm}` permission to do that !",
+    "NOTE": "Add {perm} to say the discord permission name !"
+  },
+  "webserver": {
+    "port": 3000,
+    "baseUrl": "http://localhost:3000"
+  },
+  "secretKey": "change_this_to_a_secure_random_string"
+}

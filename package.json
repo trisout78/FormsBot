@@ -1,0 +1,20 @@
+{
+  "name": "forms-bot",
+  "version": "1.0.0",
+  "description": "A Discord bot for creating dynamic forms via modals",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "deploy-commands": "node deploy-commands.js"
+  },
+  "author": "0xyToan",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^2.2.0",
+    "cookie-parser": "^1.4.7",
+    "crypto": "^1.0.1",
+    "discord.js": "^14.0.0",
+    "express": "^5.1.0",
+    "fs-extra": "^10.0.0"
+  }
+}
