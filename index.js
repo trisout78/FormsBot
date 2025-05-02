@@ -761,6 +761,7 @@ app.get('/modify/:guildId/:formId', (req, res) => {
       responseChannelId: form.responseChannelId,
       embedText: form.embedText,
       buttonLabel: form.buttonLabel,
+      embedMessageId: form.embedMessageId,
       singleResponse: form.singleResponse || false,
       reviewOptions: form.reviewOptions || { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' }
     }
@@ -823,6 +824,10 @@ app.post('/api/form/:token', verifyToken, async (req, res) => {
     client.forms[guildId] = client.forms[guildId] || {};
     const finalFormId = type === 'modify' ? formId : Date.now().toString();
     
+    // Récupérer l'ID du message existant si c'est une modification
+    const existingMessageId = type === 'modify' ? 
+      (sessionForm.embedMessageId || (client.forms[guildId][finalFormId]?.embedMessageId)) : null;
+    
     // Sauvegarder le formulaire
     client.forms[guildId][finalFormId] = {
       title: updatedForm.title,
@@ -833,8 +838,9 @@ app.post('/api/form/:token', verifyToken, async (req, res) => {
       buttonLabel: updatedForm.buttonLabel,
       singleResponse: updatedForm.singleResponse || false,
       reviewOptions: updatedForm.reviewOptions || { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' },
-      embedMessageId: type === 'modify' ? sessionForm.embedMessageId : null,
-      respondents: type === 'modify' && sessionForm.respondents ? sessionForm.respondents : {} // Garder les répondants existants
+      embedMessageId: existingMessageId,
+      respondents: type === 'modify' && client.forms[guildId][finalFormId]?.respondents ? 
+        client.forms[guildId][finalFormId].respondents : {}
     };
     
     // Créer ou mettre à jour l'embed Discord
@@ -850,26 +856,30 @@ app.post('/api/form/:token', verifyToken, async (req, res) => {
     
     let sentMessage;
     
-    if (type === 'modify' && sessionForm.embedMessageId) {
+    if (existingMessageId) {
       try {
-        sentMessage = await embedChan.messages.fetch(sessionForm.embedMessageId);
+        // Tenter de récupérer et modifier le message existant
+        sentMessage = await embedChan.messages.fetch(existingMessageId);
         await sentMessage.edit({
           embeds: [formEmbed],
           components: [new ActionRowBuilder().addComponents(btn)]
         });
+        console.log(`Message de formulaire modifié avec succès: ${existingMessageId}`);
       } catch (error) {
-        // Si le message n'existe plus, en créer un nouveau
-        console.error('Message introuvable, création d\'un nouveau message', error);
+        // Si le message n'existe plus ou n'est pas accessible, en créer un nouveau
+        console.error(`Impossible de modifier le message existant ${existingMessageId}, création d'un nouveau:`, error);
         sentMessage = await embedChan.send({
           embeds: [formEmbed],
           components: [new ActionRowBuilder().addComponents(btn)]
         });
       }
     } else {
+      // Nouveau formulaire, envoyer un nouveau message
       sentMessage = await embedChan.send({
         embeds: [formEmbed],
         components: [new ActionRowBuilder().addComponents(btn)]
       });
+      console.log(`Nouveau message de formulaire créé: ${sentMessage.id}`);
     }
     
     // Mettre à jour l'ID du message
