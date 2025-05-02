@@ -1,4 +1,6 @@
 const config = require('./config.json');
+// Ensure baseUrl includes protocol
+const baseUrl = config.webserver.baseUrl.match(/^https?:\/\//) ? config.webserver.baseUrl : `http://${config.webserver.baseUrl}`;
 const fs = require('fs-extra');
 const { Client, GatewayIntentBits, Collection, Events, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, StringSelectMenuBuilder, ChannelSelectMenuBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionsBitField } = require('discord.js');
 const { REST } = require('@discordjs/rest');
@@ -164,6 +166,115 @@ client.on(Events.InteractionCreate, async interaction => {
       }
     }
     // Arrêter ici pour ne pas exécuter le reste du code
+    return;
+  }
+
+  // Gestionnaire pour les boutons d'acceptation/refus
+  if (interaction.isButton() && (interaction.customId.startsWith('accept_response_') || interaction.customId.startsWith('reject_response_'))) {
+    console.log('Bouton de révision détecté:', interaction.customId);
+    try {
+      // Déférer la réponse immédiatement
+      await interaction.deferReply({ ephemeral: true });
+      
+      const isAccept = interaction.customId.startsWith('accept_response_');
+      const [action, , formId, messageId, userId] = interaction.customId.split('_');
+      console.log(`Tentative de ${isAccept ? 'acceptation' : 'refus'}: formId=${formId}, messageId=${messageId}, userId=${userId}`);
+      
+      // Vérifier les permissions
+      if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
+        return await interaction.editReply({ content: 'Vous n\'avez pas la permission pour cette action.', ephemeral: true });
+      }
+
+      const form = client.forms[interaction.guildId]?.[formId];
+      if (!form || !form.reviewOptions || !form.reviewOptions.enabled) {
+        console.log('Formulaire introuvable ou révision désactivée:', formId);
+        return await interaction.editReply({ content: 'Formulaire introuvable ou révision désactivée.', ephemeral: true });
+      }
+
+      try {
+        // Récupérer et mettre à jour le message
+        console.log('Récupération du salon de réponses:', form.responseChannelId);
+        const responseChannel = await client.channels.fetch(form.responseChannelId);
+        console.log('Récupération du message:', messageId);
+        const message = await responseChannel.messages.fetch(messageId);
+        
+        // Créer une nouvelle embed pour remplacer l'existante
+        const existingEmbed = message.embeds[0];
+        const updatedEmbed = EmbedBuilder.from(existingEmbed)
+          .setColor(isAccept ? '#57F287' : '#ED4245')
+          .setFooter({ text: isAccept ? '✅ Accepté' : '❌ Refusé' });
+        
+        // Conserver le bouton de suppression si c'est un formulaire à réponse unique
+        let components = [];
+        if (form.singleResponse) {
+          const deleteButton = new ButtonBuilder()
+            .setCustomId(`delete_response_${formId}_${messageId}`)
+            .setLabel('Supprimer la réponse')
+            .setStyle(ButtonStyle.Danger);
+          
+          const row = new ActionRowBuilder().addComponents(deleteButton);
+          components = [row];
+        }
+        
+        // Mettre à jour le message avec la nouvelle embed et les boutons appropriés
+        await message.edit({ embeds: [updatedEmbed], components: components });
+        
+        // Notifier le membre si spécifié et si l'utilisateur existe
+        try {
+          if (userId) {
+            const target = await client.users.fetch(userId);
+            const notificationMessage = isAccept 
+              ? (form.reviewOptions.acceptMessage || 'Votre réponse a été acceptée.')
+              : (form.reviewOptions.rejectMessage || 'Votre réponse a été refusée.');
+            
+            await target.send(notificationMessage);
+            
+            // Ajouter le rôle si spécifié et si l'utilisateur est dans le serveur
+            const member = await interaction.guild.members.fetch(userId).catch(() => null);
+            if (member) {
+              const roleId = isAccept ? form.reviewOptions.acceptRoleId : form.reviewOptions.rejectRoleId;
+              if (roleId) {
+                await member.roles.add(roleId).catch(err => {
+                  console.error(`Erreur lors de l'ajout du rôle ${roleId} à ${userId}:`, err);
+                });
+              }
+            }
+            
+            // Conserver l'entrée dans les respondents pour empêcher la réponse multiple si singleResponse est activé
+            if (form.singleResponse) {
+              form.respondents = form.respondents || {};
+              if (!form.respondents[userId]) {
+                form.respondents[userId] = { responded: true, messageId: messageId };
+              }
+              await fs.writeJson(client.formsPath, client.forms, { spaces: 2 });
+              console.log(`État du répondant ${userId} maintenu pour empêcher les réponses multiples`);
+            }
+          }
+        } catch (err) {
+          console.error('Erreur lors de la notification de l\'utilisateur:', err);
+        }
+        
+        await interaction.editReply({ 
+          content: `La réponse a été ${isAccept ? 'acceptée' : 'refusée'} avec succès.`, 
+          ephemeral: true 
+        });
+      } catch (error) {
+        console.error('Erreur lors du traitement de la réponse:', error);
+        await interaction.editReply({ 
+          content: `Erreur lors du traitement de la réponse: ${error.message}`, 
+          ephemeral: true 
+        });
+      }
+    } catch (error) {
+      console.error('Erreur générale lors du traitement de la révision:', error);
+      try {
+        if (!interaction.replied) {
+          await interaction.reply({ content: 'Une erreur est survenue.', ephemeral: true });
+        }
+      } catch (e) {
+        console.error('Impossible de répondre à l\'interaction:', e);
+      }
+    }
     return;
   }
 
@@ -437,23 +548,45 @@ client.on(Events.InteractionCreate, async interaction => {
       
       const targetChannel = await client.channels.fetch(form.responseChannelId);
       
-      // Si c'est un formulaire à réponse unique, ajouter un bouton pour supprimer la réponse
-      let messageComponents = [];
+      // Préparer les boutons selon les options du formulaire
+      let components = [];
       let messageId;
       
+      // Envoyer d'abord le message pour avoir l'ID
+      const sent = await targetChannel.send({ embeds: [resultEmbed] });
+      messageId = sent.id;
+      
+      // Construction des boutons selon les options
+      const buttons = [];
+      
+      // Ajouter le bouton de suppression si c'est un formulaire à réponse unique
       if (form.singleResponse) {
-        // send embed then add delete button
-        const sent = await targetChannel.send({ embeds: [resultEmbed] });
-        messageId = sent.id;
         const deleteButton = new ButtonBuilder()
           .setCustomId(`delete_response_${formId}_${messageId}`)
           .setLabel('Supprimer la réponse')
           .setStyle(ButtonStyle.Danger);
-        const row = new ActionRowBuilder().addComponents(deleteButton);
+        buttons.push(deleteButton);
+      }
+      
+      // Ajouter les boutons d'acceptation/refus si la révision est activée
+      if (form.reviewOptions && form.reviewOptions.enabled) {
+        const acceptButton = new ButtonBuilder()
+          .setCustomId(`accept_response_${formId}_${messageId}_${interaction.user.id}`)
+          .setLabel('Accepter')
+          .setStyle(ButtonStyle.Success);
+          
+        const rejectButton = new ButtonBuilder()
+          .setCustomId(`reject_response_${formId}_${messageId}_${interaction.user.id}`)
+          .setLabel('Refuser')
+          .setStyle(ButtonStyle.Danger);
+          
+        buttons.push(acceptButton, rejectButton);
+      }
+      
+      // Ajouter les boutons au message s'il y en a
+      if (buttons.length > 0) {
+        const row = new ActionRowBuilder().addComponents(buttons);
         await sent.edit({ components: [row] });
-      } else {
-        const sent = await targetChannel.send({ embeds: [resultEmbed] });
-        messageId = sent.id;
       }
       
       // Marquer l'utilisateur comme ayant répondu
@@ -510,7 +643,7 @@ client.on(Events.InteractionCreate, async interaction => {
     } else if (interaction.customId === 'modifyform_select') {
       const formId = interaction.values[0];
       const guildId = interaction.guildId;
-      const formUrl = `${config.webserver.baseUrl}/modify/${guildId}/${formId}`;
+      const formUrl = `${baseUrl}/modify/${guildId}/${formId}`;
       
       const embed = new EmbedBuilder()
         .setTitle('Modification de formulaire')
@@ -573,33 +706,6 @@ function verifyToken(req, res, next) {
   next();
 }
 
-
-
-// Middleware
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Générer un token unique pour une session d'édition
-function generateSecureToken() {
-  return crypto.randomBytes(32).toString('hex');
-}
-
-// Middleware pour vérifier la validité d'un token
-function verifyToken(req, res, next) {
-  const token = req.params.token || req.query.token;
-  const session = client.webSessions.get(token);
-  
-  if (!session) {
-    return res.status(401).send('Session invalide ou expirée');
-  }
-  
-  // Ajouter les données de session à la requête
-  req.session = session;
-  next();
-}
-
 // Route pour créer un nouveau formulaire
 app.get('/create/:guildId', (req, res) => {
   const { guildId } = req.params;
@@ -616,7 +722,9 @@ app.get('/create/:guildId', (req, res) => {
       embedChannelId: null,
       responseChannelId: null,
       embedText: '',
-      buttonLabel: 'Répondre'
+      buttonLabel: 'Répondre',
+      singleResponse: false,
+      reviewOptions: { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' }
     }
   });
   
@@ -640,10 +748,27 @@ app.get('/modify/:guildId/:formId', (req, res) => {
   
   const token = generateSecureToken();
   
-  // Créer une nouvelle session pour l'édition
+  // Créer une nouvelle session pour l'édition avec les données du formulaire
   client.webSessions.set(token, {
     type: 'modify',
-  }, 15 * 60 * 1000);
+    guildId,
+    formId,
+    createdAt: Date.now(),
+    form: {
+      title: form.title,
+      questions: form.questions,
+      embedChannelId: form.embedChannelId,
+      responseChannelId: form.responseChannelId,
+      embedText: form.embedText,
+      buttonLabel: form.buttonLabel,
+      singleResponse: form.singleResponse || false,
+      reviewOptions: form.reviewOptions || { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' }
+    }
+  });
+  // Rediriger vers l'éditeur
+  res.redirect(`/edit/${token}`);
+  // Supprimer la session après 15 minutes
+  setTimeout(() => client.webSessions.delete(token), 15 * 60 * 1000);
 });
 
 // Page de l'éditeur
@@ -665,9 +790,15 @@ app.get('/api/form/:token', verifyToken, (req, res) => {
     .filter(c => c.type === 0) // TextChannel
     .map(c => ({ id: c.id, name: c.name }));
   
+  // Obtenir les rôles du serveur
+  const roles = guild.roles.cache
+    .filter(r => r.name !== '@everyone')
+    .map(r => ({ id: r.id, name: r.name }));
+  
   res.json({
     form: req.session.form,
-    channels: channels
+    channels: channels,
+    roles: roles
   });
 });
 
@@ -701,6 +832,7 @@ app.post('/api/form/:token', verifyToken, async (req, res) => {
       embedText: updatedForm.embedText,
       buttonLabel: updatedForm.buttonLabel,
       singleResponse: updatedForm.singleResponse || false,
+      reviewOptions: updatedForm.reviewOptions || { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' },
       embedMessageId: type === 'modify' ? sessionForm.embedMessageId : null,
       respondents: type === 'modify' && sessionForm.respondents ? sessionForm.respondents : {} // Garder les répondants existants
     };

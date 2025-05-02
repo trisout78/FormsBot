@@ -208,6 +208,32 @@
             <input type="checkbox" id="singleResponse">
             <label for="singleResponse">Limiter à une seule réponse par utilisateur (avec possibilité de supprimer sa réponse)</label>
         </div>
+        <div class="form-group checkbox-group">
+            <input type="checkbox" id="reviewEnabled">
+            <label for="reviewEnabled">Activer la revue (Accepter/Refuser)</label>
+        </div>
+        <div id="reviewOptionsContainer" class="hidden">
+            <div class="form-group">
+                <label for="acceptMessage">Message d'acceptation</label>
+                <textarea id="acceptMessage" rows="2" placeholder="Message envoyé lors de l'acceptation"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="rejectMessage">Message de refus</label>
+                <textarea id="rejectMessage" rows="2" placeholder="Message envoyé lors du refus"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="acceptRole">Rôle à attribuer en cas d'acceptation (optionnel)</label>
+                <select id="acceptRole" class="channel-select">
+                    <option value="">-- Aucun --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="rejectRole">Rôle à attribuer en cas de refus (optionnel)</label>
+                <select id="rejectRole" class="channel-select">
+                    <option value="">-- Aucun --</option>
+                </select>
+            </div>
+        </div>
         
         <div class="btn-group">
             <button id="btnPreview" class="button-secondary">Aperçu</button>
@@ -251,6 +277,12 @@
             const buttonLabelInput = document.getElementById('buttonLabel');
             const alertBox = document.getElementById('alertBox');
             const singleResponseCheckbox = document.getElementById('singleResponse');
+            const reviewEnabledCheckbox = document.getElementById('reviewEnabled');
+            const reviewOptionsContainer = document.getElementById('reviewOptionsContainer');
+            const acceptMessageInput = document.getElementById('acceptMessage');
+            const rejectMessageInput = document.getElementById('rejectMessage');
+            const acceptRoleSelect = document.getElementById('acceptRole');
+            const rejectRoleSelect = document.getElementById('rejectRole');
             
             // Fonction pour afficher une alerte
             function showAlert(message, type) {
@@ -296,6 +328,15 @@
                     embedTextInput.value = data.form.embedText || '';
                     buttonLabelInput.value = data.form.buttonLabel || 'Répondre';
                     singleResponseCheckbox.checked = data.form.singleResponse || false;
+                    // Initialiser les options de revue même si pas de salons détectés
+                    if (data.form.reviewOptions) {
+                        reviewEnabledCheckbox.checked = data.form.reviewOptions.enabled;
+                        acceptMessageInput.value = data.form.reviewOptions.acceptMessage || '';
+                        rejectMessageInput.value = data.form.reviewOptions.rejectMessage || '';
+                        acceptRoleSelect.value = data.form.reviewOptions.acceptRoleId || '';
+                        rejectRoleSelect.value = data.form.reviewOptions.rejectRoleId || '';
+                        reviewOptionsContainer.classList.toggle('hidden', !data.form.reviewOptions.enabled);
+                    }
                     
                     // Ajouter les questions
                     if (data.form.questions && data.form.questions.length > 0) {
@@ -324,6 +365,27 @@
                         
                         if (data.form.responseChannelId) {
                             responseChannelSelect.value = data.form.responseChannelId;
+                        }
+                        // Remplir les rôles si fournis
+                        if (data.roles && data.roles.length) {
+                            data.roles.forEach(role => {
+                                const option = document.createElement('option');
+                                option.value = role.id;
+                                option.textContent = role.name;
+                                acceptRoleSelect.appendChild(option);
+                                rejectRoleSelect.appendChild(option.cloneNode(true));
+                            });
+                            // Sélectionner les rôles si définis
+                            if (data.form.reviewOptions) {
+                                reviewEnabledCheckbox.checked = data.form.reviewOptions.enabled;
+                                acceptMessageInput.value = data.form.reviewOptions.acceptMessage || '';
+                                rejectMessageInput.value = data.form.reviewOptions.rejectMessage || '';
+                                acceptRoleSelect.value = data.form.reviewOptions.acceptRoleId || '';
+                                rejectRoleSelect.value = data.form.reviewOptions.rejectRoleId || '';
+                                if (reviewEnabledCheckbox.checked) {
+                                    reviewOptionsContainer.classList.remove('hidden');
+                                }
+                            }
                         }
                     }
                 } catch (error) {
@@ -356,7 +418,14 @@
                         responseChannelId: responseChannelSelect.value,
                         embedText: embedTextInput.value,
                         buttonLabel: buttonLabelInput.value,
-                        singleResponse: singleResponseCheckbox.checked
+                        singleResponse: singleResponseCheckbox.checked,
+                        reviewOptions: {
+                            enabled: reviewEnabledCheckbox.checked,
+                            acceptMessage: acceptMessageInput.value,
+                            rejectMessage: rejectMessageInput.value,
+                            acceptRoleId: acceptRoleSelect.value,
+                            rejectRoleId: rejectRoleSelect.value
+                        }
                     };
                     
                     // Valider les données
@@ -418,6 +487,10 @@
             btnAddQuestion.addEventListener('click', () => addQuestion());
             
             btnSave.addEventListener('click', saveForm);
+            
+            reviewEnabledCheckbox.addEventListener('change', () => {
+                reviewOptionsContainer.classList.toggle('hidden', !reviewEnabledCheckbox.checked);
+            });
             
             btnPreview.addEventListener('click', function() {
                 // Générer un aperçu du formulaire
