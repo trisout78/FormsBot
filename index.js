@@ -1,6 +1,6 @@
 const config = require('./config.json');
 const fs = require('fs-extra');
-const { Client, GatewayIntentBits, Collection, Events, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, StringSelectMenuBuilder, ChannelSelectMenuBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Events, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, StringSelectMenuBuilder, ChannelSelectMenuBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionsBitField } = require('discord.js');
 const { REST } = require('@discordjs/rest');
 const { Routes } = require('discord-api-types/v9');
 const crypto = require('crypto');
@@ -103,6 +103,71 @@ client.on('guildCreate', guild => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  // Gestionnaire spécifique pour les boutons de suppression de réponse
+  if (interaction.isButton() && interaction.customId.startsWith('delete_response_')) {
+    console.log('Bouton de suppression détecté:', interaction.customId);
+    try {
+      // Déférer la réponse immédiatement
+      await interaction.deferReply({ ephemeral: true });
+      
+      const [, , formId, messageId] = interaction.customId.split('_');
+      console.log(`Tentative de suppression: formId=${formId}, messageId=${messageId}`);
+      
+      // Vérifier les permissions
+      if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
+        return await interaction.editReply({ content: 'Vous n\'avez pas la permission pour supprimer les réponses.', ephemeral: true });
+      }
+
+      const form = client.forms[interaction.guildId]?.[formId];
+      if (!form) {
+        console.log('Formulaire non trouvé:', formId);
+        return await interaction.editReply({ content: 'Formulaire introuvable.', ephemeral: true });
+      }
+
+      try {
+        // Récupérer et supprimer le message
+        console.log('Récupération du salon de réponses:', form.responseChannelId);
+        const responseChannel = await client.channels.fetch(form.responseChannelId);
+        console.log('Récupération du message:', messageId);
+        const message = await responseChannel.messages.fetch(messageId);
+        await message.delete();
+        console.log('Message supprimé avec succès');
+
+        // Supprimer l'entrée du répondant
+        if (form.respondents) {
+          for (const [uid, info] of Object.entries(form.respondents)) {
+            if (info.messageId === messageId) {
+              delete form.respondents[uid];
+              console.log('Entrée répondant supprimée:', uid);
+              break;
+            }
+          }
+          // Sauvegarder les changements
+          await fs.writeJson(client.formsPath, client.forms, { spaces: 2 });
+          console.log('Données sauvegardées');
+        }
+
+        await interaction.editReply({ content: 'Réponse supprimée avec succès.', ephemeral: true });
+      } catch (error) {
+        console.error('Erreur lors de la suppression de la réponse:', error);
+        await interaction.editReply({ content: `Erreur lors de la suppression de la réponse: ${error.message}`, ephemeral: true });
+      }
+    } catch (error) {
+      console.error('Erreur générale lors du traitement de la suppression:', error);
+      // En cas d'erreur avec deferReply, essayer une méthode alternative
+      try {
+        if (!interaction.replied) {
+          await interaction.reply({ content: 'Une erreur est survenue lors de la suppression.', ephemeral: true });
+        }
+      } catch (e) {
+        console.error('Impossible de répondre à l\'interaction:', e);
+      }
+    }
+    // Arrêter ici pour ne pas exécuter le reste du code
+    return;
+  }
+
+  // Reste du code pour les autres interactions...
   if (interaction.isChatInputCommand()) {
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
@@ -130,12 +195,27 @@ client.on(Events.InteractionCreate, async interaction => {
       const formId = interaction.customId.split('_')[1];
       const form = client.forms[interaction.guildId]?.[formId];
       if (!form) return interaction.reply({ content: 'Formulaire introuvable.', ephemeral: true });
-      if (form.questions.length > 5) {
-        return interaction.reply({ content: 'Ce formulaire contient trop de questions (max 5).', ephemeral: true });
+
+      // Vérifier si l'utilisateur a déjà répondu (si singleResponse est activé)
+      if (form.singleResponse && form.respondents && form.respondents[interaction.user.id]) {
+        return interaction.reply({ 
+          content: 'Vous avez déjà répondu à ce formulaire. Vous ne pouvez pas répondre à nouveau.', 
+          ephemeral: true 
+        });
       }
+      
+      // Vérifier le nombre de questions et avertir si > 5
+      if (form.questions.length > 5) {
+        return interaction.reply({ 
+          content: 'Ce formulaire contient trop de questions pour un seul modal (limite Discord: 5). Contactez l\'administrateur du serveur.', 
+          ephemeral: true 
+        });
+      }
+      
       const modal = new ModalBuilder()
         .setCustomId(`fill_modal_${formId}`)
         .setTitle('Répondre au formulaire');
+      
       form.questions.forEach((q, i) => modal.addComponents(
         new ActionRowBuilder().addComponents(
           new TextInputBuilder()
@@ -145,7 +225,16 @@ client.on(Events.InteractionCreate, async interaction => {
             .setRequired(true)
         )
       ));
-      return interaction.showModal(modal);
+      
+      try {
+        await interaction.showModal(modal);
+      } catch (error) {
+        console.error('Erreur lors de l\'affichage du modal:', error);
+        await interaction.reply({ 
+          content: 'Une erreur est survenue lors de l\'ouverture du formulaire. Veuillez réessayer.', 
+          ephemeral: true 
+        });
+      }
     }
     const builder = client.formBuilders.get(interaction.user.id);
     if (!builder) return;
@@ -285,6 +374,14 @@ client.on(Events.InteractionCreate, async interaction => {
       const form = client.forms[interaction.guildId]?.[formId];
       if (!form) return interaction.reply({ content: 'Formulaire introuvable.', ephemeral: true });
       
+      // Vérifier si l'utilisateur a déjà répondu (si singleResponse est activé)
+      if (form.singleResponse && form.respondents && form.respondents[interaction.user.id]) {
+        return interaction.reply({ 
+          content: 'Vous avez déjà répondu à ce formulaire. Vous ne pouvez pas répondre à nouveau.', 
+          ephemeral: true 
+        });
+      }
+      
       // Vérifier le nombre de questions et avertir si > 5
       if (form.questions.length > 5) {
         return interaction.reply({ 
@@ -345,19 +442,15 @@ client.on(Events.InteractionCreate, async interaction => {
       let messageId;
       
       if (form.singleResponse) {
-        const deleteButton = new ButtonBuilder()
-          .setCustomId(`delete_response_${formId}_${interaction.user.id}`)
-          .setLabel('Supprimer ma réponse')
-          .setStyle(ButtonStyle.Danger);
-        
-        const row = new ActionRowBuilder().addComponents(deleteButton);
-        messageComponents = [row];
-        
-        const sent = await targetChannel.send({ 
-          embeds: [resultEmbed],
-          components: messageComponents
-        });
+        // send embed then add delete button
+        const sent = await targetChannel.send({ embeds: [resultEmbed] });
         messageId = sent.id;
+        const deleteButton = new ButtonBuilder()
+          .setCustomId(`delete_response_${formId}_${messageId}`)
+          .setLabel('Supprimer la réponse')
+          .setStyle(ButtonStyle.Danger);
+        const row = new ActionRowBuilder().addComponents(deleteButton);
+        await sent.edit({ components: [row] });
       } else {
         const sent = await targetChannel.send({ embeds: [resultEmbed] });
         messageId = sent.id;
@@ -449,66 +542,38 @@ client.on(Events.InteractionCreate, async interaction => {
       }
     }
   }
-  // Ajouter un gestionnaire pour le bouton de suppression de réponse
-  else if (interaction.isButton() && interaction.customId.startsWith('delete_response_')) {
-    const parts = interaction.customId.split('_');
-    const formId = parts[2];
-    const userId = parts[3];
-    
-    // Vérifier que l'utilisateur qui clique est bien celui qui a répondu
-    if (interaction.user.id !== userId) {
-      return interaction.reply({ 
-        content: 'Vous ne pouvez pas supprimer la réponse d\'un autre utilisateur.', 
-        ephemeral: true 
-      });
-    }
-    
-    const form = client.forms[interaction.guildId]?.[formId];
-    if (!form) {
-      return interaction.reply({ content: 'Formulaire introuvable.', ephemeral: true });
-    }
-    
-    // Vérifier que la réponse existe
-    if (!form.respondents || !form.respondents[userId]) {
-      return interaction.reply({ content: 'Réponse introuvable.', ephemeral: true });
-    }
-    
-    try {
-      // Supprimer le message de réponse
-      const responseChannel = await client.channels.fetch(form.responseChannelId);
-      const messageId = form.respondents[userId].messageId;
-      
-      if (messageId) {
-        try {
-          const message = await responseChannel.messages.fetch(messageId);
-          await message.delete();
-        } catch (err) {
-          console.error('Erreur lors de la suppression du message:', err);
-          // Continuer même si le message n'existe plus
-        }
-      }
-      
-      // Supprimer l'entrée du répondant
-      delete form.respondents[userId];
-      fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
-      
-      await interaction.reply({ 
-        content: 'Votre réponse a été supprimée. Vous pouvez maintenant répondre à nouveau au formulaire.', 
-        ephemeral: true 
-      });
-    } catch (error) {
-      console.error('Erreur lors de la suppression de la réponse:', error);
-      await interaction.reply({ 
-        content: 'Une erreur est survenue lors de la suppression de votre réponse.', 
-        ephemeral: true 
-      });
-    }
-  }
 });
 
 // Configuration du serveur web
 const app = express();
 const server = http.createServer(app);
+
+// Middleware
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cookieParser());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Générer un token unique pour une session d'édition
+function generateSecureToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// Middleware pour vérifier la validité d'un token
+function verifyToken(req, res, next) {
+  const token = req.params.token || req.query.token;
+  const session = client.webSessions.get(token);
+  
+  if (!session) {
+    return res.status(401).send('Session invalide ou expirée');
+  }
+  
+  // Ajouter les données de session à la requête
+  req.session = session;
+  next();
+}
+
+
 
 // Middleware
 app.use(bodyParser.json());
@@ -578,18 +643,6 @@ app.get('/modify/:guildId/:formId', (req, res) => {
   // Créer une nouvelle session pour l'édition
   client.webSessions.set(token, {
     type: 'modify',
-    guildId,
-    formId,
-    createdAt: Date.now(),
-    form: JSON.parse(JSON.stringify(form)) // Copie profonde
-  });
-  
-  // Redirige vers l'éditeur
-  res.redirect(`/edit/${token}`);
-  
-  // Supprimer la session après 15 minutes
-  setTimeout(() => {
-    client.webSessions.delete(token);
   }, 15 * 60 * 1000);
 });
 
