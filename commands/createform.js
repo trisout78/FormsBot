@@ -1,12 +1,17 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const config = require('../config.json');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('createform')
-    .setDescription('Démarrer la création de formulaire'),
+    .setDescription('Démarrer la création de formulaire')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   async execute(interaction, client) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      return interaction.reply({ content: 'Vous n\'avez pas la permission de créer des formulaires.', ephemeral: true });
+    }
+    
     const userId = interaction.user.id;
     const guildId = interaction.guildId;
     

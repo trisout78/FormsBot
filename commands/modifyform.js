@@ -1,12 +1,17 @@
-const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const config = require('../config.json');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('modifyform')
-    .setDescription('Modifier un formulaire existant'),
+    .setDescription('Modifier un formulaire existant')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   async execute(interaction, client) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      return interaction.reply({ content: 'Vous n\'avez pas la permission de modifier des formulaires.', ephemeral: true });
+    }
+    
     const guildForms = client.forms[interaction.guildId] || {};
     const keys = Object.keys(guildForms);
     if (!keys.length) {
