@@ -38,19 +38,59 @@
         }
         .btn {
             display: inline-block;
-            padding: 0.75rem 1.5rem;
+            padding: 12px 28px;
             text-decoration: none;
-            border-radius: 5px;
-            font-weight: 600;
-            transition: background-color 0.2s;
+            border-radius: 8px;
+            font-weight: 700;
+            transition: all 0.3s ease;
             font-size: 1.1rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+        }
+        .btn::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+        .btn:hover::after {
+            transform: translateX(0);
         }
         .btn-primary {
             background-color: white;
             color: #5865F2;
+            border: none;
         }
         .btn-primary:hover {
-            background-color: #f0f0f0;
+            background-color: #f8f9fa;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+        }
+        .btn-secondary {
+            background-color: #5865F2;
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+        }
+        .btn-secondary:hover {
+            background-color: #4752C4;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+            border-color: white;
+        }
+        .buttons-container {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            margin-top: 2.5rem;
         }
         .features {
             display: flex;
@@ -122,9 +162,11 @@
             color: #99AAB5;
             padding: 2rem;
             text-align: center;
+            color: #99AAB5;
+            font-size: 0.9rem;
         }
         footer a {
-            color: white;
+            color: #99AAB5;
             text-decoration: none;
         }
         footer a:hover {
@@ -141,30 +183,63 @@
     </style>
 </head>
 <body>
-    <section class="hero">
-        <h1>MyForm</h1>
-        <p>Créez des formulaires interactifs pour votre serveur Discord en quelques clics. Recueillez facilement des informations, gérez des candidatures et bien plus encore.</p>
-        <a href="/auth/discord" class="btn btn-primary">Commencer avec Discord</a>
-    </section>
-
-    <div class="container">
-        <section class="features">
+        <div class="container">
+        <div class="hero">
+            <h1>MyForm <span>Bot</span></h1>
+            <p class="tagline">Créez des formulaires Discord interactifs simplement</p>
+            <div class="buttons-container">
+                <a href="https://discord.com/oauth2/authorize?client_id=1367532884684050583&permissions=8&integration_type=0&scope=bot" class="btn btn-primary" target="_blank">Ajouter à mon serveur</a>
+                <a href="/auth/discord" class="btn btn-secondary">Connexion</a>
+            </div>
+        </div>
+        
+        <div class="features">
             <div class="feature">
                 <div class="feature-icon">📋</div>
                 <h2>Formulaires simples</h2>
                 <p>Créez des formulaires interactifs directement dans Discord sans aucune connaissance technique. Interface utilisateur intuitive et conviviale.</p>
             </div>
             <div class="feature">
-                <div class="feature-icon">🔒</div>
-                <h2>Sécurisé</h2>
-                <p>Authentification via Discord. Seuls les utilisateurs avec les permissions adéquates peuvent créer et gérer des formulaires.</p>
+                <div class="feature-icon">🔄</div>
+                <h2>Réponses en temps réel</h2>
+                <p>Recevez les réponses instantanément dans un salon dédié et consultez-les facilement depuis Discord.</p>
             </div>
             <div class="feature">
-                <div class="feature-icon">⚙️</div>
-                <h2>Personnalisable</h2>
-                <p>Multiples types de questions, validation des réponses, et options de révision avec attribution de rôles automatique.</p>
+                <div class="feature-icon">✅</div>
+                <h2>Système de révision</h2>
+                <p>Acceptez ou refusez les réponses avec un système de validation intégré, idéal pour les candidatures.</p>
             </div>
-        </section>
+            <div class="feature">
+                <div class="feature-icon">🔒</div>
+                <h2>Réponses uniques</h2>
+                <p>Limitez les utilisateurs à une seule réponse par formulaire pour éviter les doublons et les abus.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">👥</div>
+                <h2>Attribution de rôles</h2>
+                <p>Attribuez automatiquement des rôles aux utilisateurs selon que leur réponse est acceptée ou refusée.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">📱</div>
+                <h2>Interface web</h2>
+                <p>Gérez vos formulaires depuis une interface web responsive, accessible sur ordinateur comme sur mobile.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">⚡</div>
+                <h2>Performance optimisée</h2>
+                <p>Bot léger et réactif, conçu pour fonctionner efficacement même sur les serveurs très actifs.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔔</div>
+                <h2>Notifications</h2>
+                <p>Notifications privées aux utilisateurs lorsque leur réponse est traitée pour une meilleure communication.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🛡️</div>
+                <h2>Sécurité intégrée</h2>
+                <p>Système de permissions basé sur les rôles Discord pour garantir que seuls les admins autorisés peuvent gérer les formulaires.</p>
+            </div>
+        </div>
     </div>
 
     <section class="steps">
@@ -193,7 +268,7 @@
     <footer>
         <div class="container">
             <p>MyForm - 2025</p>
-            <p><a href="https://github.com" target="_blank">GitHub</a> | <a href="https://discord.com" target="_blank">Discord</a> | <a href="#" target="_blank">Conditions d'utilisation</a></p>
+            <p>Développé avec ❤️ par Trisout</p>
         </div>
     </footer>
 </body>
