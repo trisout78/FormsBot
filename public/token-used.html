@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MyForm - Opération réussie</title>
+    <title>MyForm - Token déjà utilisé</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -26,16 +26,16 @@
             text-align: center;
         }
         h1 {
-            color: #57F287;
+            color: #F0B232;
             margin-bottom: 1rem;
         }
         p {
             font-size: 1.1rem;
             margin-bottom: 2rem;
         }
-        .icon-success {
+        .icon-warning {
             font-size: 5rem;
-            color: #57F287;
+            color: #F0B232;
             margin-bottom: 1rem;
         }
         .btn {
@@ -71,12 +71,31 @@
 </head>
 <body>
     <div class="container">
-        <div class="icon-success">✓</div>
-        <h1>Opération réussie</h1>
-        <p>Votre formulaire a été créé avec succès et publié sur Discord.</p>
+        <div class="icon-warning">⚠️</div>
+        <h1>Token déjà utilisé</h1>
+        <p>Ce lien d'authentification a déjà été utilisé ou a expiré. Veuillez réessayer la connexion.</p>
+        
         <div class="buttons">
-            <a href="/dashboard" class="btn">Retour au tableau de bord</a>
+            <a href="/" class="btn btn-outline">Retour à l'accueil</a>
+            <a href="/dashboard" id="dashboardBtn" class="btn">Tableau de bord</a>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Vérifier si l'utilisateur est connecté
+            fetch('/api/user')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.user) {
+                        // Utilisateur non connecté, masquer le bouton du tableau de bord
+                        document.getElementById('dashboardBtn').style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Erreur lors de la vérification de l\'état de l\'utilisateur:', error);
+                });
+        });
+    </script>
 </body>
 </html>

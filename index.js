@@ -5,12 +5,14 @@ const fs = require('fs-extra');
 const { Client, GatewayIntentBits, Collection, Events, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, StringSelectMenuBuilder, ChannelSelectMenuBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionsBitField } = require('discord.js');
 const { REST } = require('@discordjs/rest');
 const { Routes } = require('discord-api-types/v9');
-const crypto = require('crypto');
 const express = require('express');
 const http = require('http');
 const path = require('path');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
+const session = require('express-session');
+const axios = require('axios');
+const url = require('url');
 
 // Configuration du client Discord
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -22,7 +24,6 @@ let forms = fs.existsSync(formsPath) ? fs.readJsonSync(formsPath) : {};
 client.forms = forms;
 client.formsPath = formsPath;
 client.formBuilders = new Map();
-client.webSessions = new Map(); // Pour stocker les sessions web
 
 client.commands = new Collection();
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
@@ -686,59 +687,189 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
-
-// Générer un token unique pour une session d'édition
-function generateSecureToken() {
-  return crypto.randomBytes(32).toString('hex');
-}
-
-// Middleware pour vérifier la validité d'un token
-function verifyToken(req, res, next) {
-  const token = req.params.token || req.query.token;
-  const session = client.webSessions.get(token);
-  
-  if (!session) {
-    return res.status(401).send('Session invalide ou expirée');
+app.use(session({
+  secret: config.secretKey,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    secure: config.webserver.baseUrl.startsWith('https'),
+    maxAge: 24 * 60 * 60 * 1000 // 24 heures
   }
-  
-  // Ajouter les données de session à la requête
-  req.session = session;
+}));
+
+// Discord OAuth2 URLs
+const DISCORD_API_URL = 'https://discord.com/api/v10';
+const OAUTH_REDIRECT_URI = `${config.webserver.baseUrl}/auth/discord/callback`;
+const OAUTH_SCOPES = ['identify', 'guilds', 'guilds.members.read'];
+
+// Middleware pour vérifier si l'utilisateur est authentifié
+function isAuthenticated(req, res, next) {
+  if (!req.session.user) {
+    // Stocker l'URL d'origine pour rediriger après l'authentification
+    req.session.returnTo = req.originalUrl;
+    return res.redirect('/auth/discord');
+  }
   next();
 }
 
-// Route pour créer un nouveau formulaire
-app.get('/create/:guildId', (req, res) => {
-  const { guildId } = req.params;
-  const token = generateSecureToken();
-  
-  // Créer une nouvelle session
-  client.webSessions.set(token, {
-    type: 'create',
-    guildId,
-    createdAt: Date.now(),
-    form: {
-      title: '',
-      questions: [],
-      embedChannelId: null,
-      responseChannelId: null,
-      embedText: '',
-      buttonLabel: 'Répondre',
-      singleResponse: false,
-      reviewOptions: { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' }
+// Middleware pour vérifier les permissions Discord dans un serveur spécifique
+async function hasGuildPermission(req, res, next) {
+  const guildId = req.params.guildId || req.params.serverId;
+  if (!guildId) {
+    return res.status(400).send('ID du serveur manquant');
+  }
+
+  if (!req.session.user) {
+    req.session.returnTo = req.originalUrl;
+    return res.redirect('/auth/discord');
+  }
+
+  try {
+    // Obtenir les informations du serveur
+    const guildResponse = await axios.get(`${DISCORD_API_URL}/users/@me/guilds`, {
+      headers: {
+        Authorization: `Bearer ${req.session.accessToken}`
+      }
+    }).catch(error => {
+      console.error('Erreur lors de la récupération des serveurs:', error.response?.data || error.message);
+      return { data: [] };
+    });
+
+    // Vérifier si l'utilisateur est membre du serveur et récupérer ses permissions
+    const userGuild = guildResponse.data.find(guild => guild.id === guildId);
+    
+    if (!userGuild) {
+      return res.status(403).send('Vous n\'êtes pas membre de ce serveur');
     }
+    
+    // Vérifier si l'utilisateur est le propriétaire du serveur
+    const isOwner = userGuild.owner === true;
+    
+    // Vérifier les permissions (MANAGE_MESSAGES = 8192, ADMINISTRATOR = 8)
+    const permissions = BigInt(userGuild.permissions || 0);
+    const hasAdminPermission = (permissions & BigInt(0x8)) !== BigInt(0); // 0x8 = ADMINISTRATOR
+    const hasManageMessagesPermission = (permissions & BigInt(0x2000)) !== BigInt(0); // 0x2000 = MANAGE_MESSAGES
+    
+    // Autoriser l'accès si l'utilisateur est propriétaire, administrateur ou a la permission de gérer les messages
+    if (hasManageMessagesPermission) {
+      // Récupérer plus d'informations sur le membre du serveur si nécessaire
+      try {
+        const memberResponse = await axios.get(`${DISCORD_API_URL}/users/@me/guilds/${guildId}/member`, {
+          headers: {
+            Authorization: `Bearer ${req.session.accessToken}`
+          }
+        }).catch(() => ({ data: null }));
+
+        if (memberResponse.data) {
+          req.guildMember = memberResponse.data;
+        }
+      } catch (memberError) {
+        console.log('Impossible de récupérer les détails du membre, mais l\'utilisateur a les permissions nécessaires');
+        // Ne pas échouer si on ne peut pas récupérer les détails du membre
+      }
+      
+      // Ajouter les informations du serveur à la requête
+      req.guild = userGuild;
+      return next();
+    }
+    
+    return res.status(403).send('Vous n\'avez pas les permissions nécessaires dans ce serveur');
+  } catch (error) {
+    console.error('Erreur lors de la vérification des permissions:', error);
+    res.status(500).send('Erreur lors de la vérification des permissions');
+  }
+}
+
+// Route d'authentification Discord
+app.get('/auth/discord', (req, res) => {
+  const params = new URLSearchParams({
+    client_id: config.clientId,
+    redirect_uri: OAUTH_REDIRECT_URI,
+    response_type: 'code',
+    scope: OAUTH_SCOPES.join(' ')
   });
+  res.redirect(`${DISCORD_API_URL}/oauth2/authorize?${params.toString()}`);
+});
+
+// Route de succès après création/modification de formulaire
+app.get('/success', isAuthenticated, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'success.html'));
+});
+
+// Route d'erreur générique
+app.get('/error', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'error.html'));
+});
+
+// Route du tableau de bord
+app.get('/dashboard', isAuthenticated, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+// Callback OAuth2 Discord - Amélioration avec gestion d'erreur
+app.get('/auth/discord/callback', async (req, res) => {
+  const { code } = req.query;
   
-  // Redirige vers l'éditeur
-  res.redirect(`/edit/${token}`);
-  
-  // Supprimer la session après 15 minutes
-  setTimeout(() => {
-    client.webSessions.delete(token);
-  }, 15 * 60 * 1000);
+  if (!code) {
+    return res.redirect('/error?title=Erreur+d%27authentification&message=Code+d%27autorisation+manquant');
+  }
+
+  try {
+    // Échanger le code contre un jeton d'accès
+    const tokenResponse = await axios.post(`${DISCORD_API_URL}/oauth2/token`, 
+      new URLSearchParams({
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        code,
+        grant_type: 'authorization_code',
+        redirect_uri: OAUTH_REDIRECT_URI,
+        scope: OAUTH_SCOPES.join(' ')
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
+    );
+
+    const { access_token, expires_in, refresh_token } = tokenResponse.data;
+
+    // Récupérer les informations de l'utilisateur
+    const userResponse = await axios.get(`${DISCORD_API_URL}/users/@me`, {
+      headers: {
+        Authorization: `Bearer ${access_token}`
+      }
+    });
+
+    // Stocker les informations dans la session
+    req.session.accessToken = access_token;
+    req.session.refreshToken = refresh_token;
+    req.session.expiresAt = Date.now() + expires_in * 1000;
+    req.session.user = userResponse.data;
+
+    // Rediriger vers la page d'origine ou le tableau de bord par défaut
+    const returnTo = req.session.returnTo || '/dashboard';
+    delete req.session.returnTo;
+    res.redirect(returnTo);
+  } catch (error) {
+    console.error('Erreur d\'authentification Discord:', error.response?.data || error.message);
+    res.redirect('/error?title=Erreur+d%27authentification&message=Impossible+de+vous+authentifier+avec+Discord');
+  }
+});
+
+// Déconnexion
+app.get('/logout', (req, res) => {
+  req.session.destroy();
+  res.redirect('/');
+});
+
+// Route pour créer un nouveau formulaire
+app.get('/create/:guildId', isAuthenticated, hasGuildPermission, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'editor.html'));
 });
 
 // Route pour modifier un formulaire existant
-app.get('/modify/:guildId/:formId', (req, res) => {
+app.get('/edit/:guildId/:formId', isAuthenticated, hasGuildPermission, (req, res) => {
   const { guildId, formId } = req.params;
   const form = client.forms[guildId]?.[formId];
   
@@ -746,40 +877,12 @@ app.get('/modify/:guildId/:formId', (req, res) => {
     return res.status(404).send('Formulaire introuvable');
   }
   
-  const token = generateSecureToken();
-  
-  // Créer une nouvelle session pour l'édition avec les données du formulaire
-  client.webSessions.set(token, {
-    type: 'modify',
-    guildId,
-    formId,
-    createdAt: Date.now(),
-    form: {
-      title: form.title,
-      questions: form.questions,
-      embedChannelId: form.embedChannelId,
-      responseChannelId: form.responseChannelId,
-      embedText: form.embedText,
-      buttonLabel: form.buttonLabel,
-      embedMessageId: form.embedMessageId,
-      singleResponse: form.singleResponse || false,
-      reviewOptions: form.reviewOptions || { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' }
-    }
-  });
-  // Rediriger vers l'éditeur
-  res.redirect(`/edit/${token}`);
-  // Supprimer la session après 15 minutes
-  setTimeout(() => client.webSessions.delete(token), 15 * 60 * 1000);
-});
-
-// Page de l'éditeur
-app.get('/edit/:token', verifyToken, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'editor.html'));
 });
 
 // API pour obtenir les données du formulaire
-app.get('/api/form/:token', verifyToken, (req, res) => {
-  const { guildId } = req.session;
+app.get('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, (req, res) => {
+  const { guildId, formId } = req.params;
   const guild = client.guilds.cache.get(guildId);
   
   if (!guild) {
@@ -796,16 +899,72 @@ app.get('/api/form/:token', verifyToken, (req, res) => {
     .filter(r => r.name !== '@everyone')
     .map(r => ({ id: r.id, name: r.name }));
   
+  // Si formId est fourni, récupérer le formulaire existant
+  let form = {
+    title: '',
+    questions: [],
+    embedChannelId: null,
+    responseChannelId: null,
+    embedText: '',
+    buttonLabel: 'Répondre',
+    singleResponse: false,
+    reviewOptions: { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' }
+  };
+  
+  if (formId && client.forms[guildId]?.[formId]) {
+    form = { ...client.forms[guildId][formId] };
+  }
+  
   res.json({
-    form: req.session.form,
+    form: form,
     channels: channels,
-    roles: roles
+    roles: roles,
+    user: req.session.user
   });
 });
 
-// API pour sauvegarder le formulaire
-app.post('/api/form/:token', verifyToken, async (req, res) => {
-  const { type, guildId, formId, form: sessionForm } = req.session;
+// Route pour obtenir un formulaire vide (pour nouvelle création)
+app.get('/api/form/:guildId', isAuthenticated, hasGuildPermission, (req, res) => {
+  const { guildId } = req.params;
+  const guild = client.guilds.cache.get(guildId);
+  
+  if (!guild) {
+    return res.status(404).json({ error: 'Serveur introuvable' });
+  }
+  
+  // Obtenir les canaux du serveur
+  const channels = guild.channels.cache
+    .filter(c => c.type === 0) // TextChannel
+    .map(c => ({ id: c.id, name: c.name }));
+  
+  // Obtenir les rôles du serveur
+  const roles = guild.roles.cache
+    .filter(r => r.name !== '@everyone')
+    .map(r => ({ id: r.id, name: r.name }));
+  
+  // Formulaire vide par défaut
+  const form = {
+    title: '',
+    questions: [],
+    embedChannelId: null,
+    responseChannelId: null,
+    embedText: '',
+    buttonLabel: 'Répondre',
+    singleResponse: false,
+    reviewOptions: { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' }
+  };
+  
+  res.json({
+    form: form,
+    channels: channels,
+    roles: roles,
+    user: req.session.user
+  });
+});
+
+// API pour sauvegarder le formulaire - Mise à jour pour rediriger vers la page de succès
+app.post('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, async (req, res) => {
+  const { guildId, formId } = req.params;
   const updatedForm = req.body.form;
   
   if (!updatedForm) {
@@ -822,11 +981,10 @@ app.post('/api/form/:token', verifyToken, async (req, res) => {
     
     // Préparation pour sauvegarder dans client.forms
     client.forms[guildId] = client.forms[guildId] || {};
-    const finalFormId = type === 'modify' ? formId : Date.now().toString();
+    const finalFormId = formId || Date.now().toString();
     
     // Récupérer l'ID du message existant si c'est une modification
-    const existingMessageId = type === 'modify' ? 
-      (sessionForm.embedMessageId || (client.forms[guildId][finalFormId]?.embedMessageId)) : null;
+    const existingMessageId = formId && client.forms[guildId][finalFormId]?.embedMessageId;
     
     // Sauvegarder le formulaire
     client.forms[guildId][finalFormId] = {
@@ -839,7 +997,7 @@ app.post('/api/form/:token', verifyToken, async (req, res) => {
       singleResponse: updatedForm.singleResponse || false,
       reviewOptions: updatedForm.reviewOptions || { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' },
       embedMessageId: existingMessageId,
-      respondents: type === 'modify' && client.forms[guildId][finalFormId]?.respondents ? 
+      respondents: formId && client.forms[guildId][finalFormId]?.respondents ? 
         client.forms[guildId][finalFormId].respondents : {}
     };
     
@@ -888,14 +1046,206 @@ app.post('/api/form/:token', verifyToken, async (req, res) => {
     // Sauvegarder dans le fichier
     fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
     
-    // Supprimer la session
-    client.webSessions.delete(req.params.token);
+    res.json({ success: true, redirect: '/success' });
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde du formulaire:', error);
+    res.status(500).json({ error: 'Erreur lors de la sauvegarde du formulaire', details: error.message });
+  }
+});
+
+// API pour sauvegarder un nouveau formulaire - Mise à jour pour rediriger vers la page de succès
+app.post('/api/form/:guildId', isAuthenticated, hasGuildPermission, async (req, res) => {
+  const { guildId } = req.params;
+  const updatedForm = req.body.form;
+  
+  if (!updatedForm) {
+    return res.status(400).json({ error: 'Données du formulaire manquantes' });
+  }
+  
+  try {
+    // Valider le formulaire
+    if (!updatedForm.title || !updatedForm.embedText || !updatedForm.buttonLabel ||
+        !updatedForm.embedChannelId || !updatedForm.responseChannelId || 
+        !updatedForm.questions || updatedForm.questions.length === 0) {
+      return res.status(400).json({ error: 'Formulaire incomplet' });
+    }
+    
+    // Préparation pour sauvegarder dans client.forms
+    client.forms[guildId] = client.forms[guildId] || {};
+    const finalFormId = Date.now().toString();
+    
+    // Sauvegarder le formulaire
+    client.forms[guildId][finalFormId] = {
+      title: updatedForm.title,
+      questions: updatedForm.questions,
+      embedChannelId: updatedForm.embedChannelId,
+      responseChannelId: updatedForm.responseChannelId,
+      embedText: updatedForm.embedText,
+      buttonLabel: updatedForm.buttonLabel,
+      singleResponse: updatedForm.singleResponse || false,
+      reviewOptions: updatedForm.reviewOptions || { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' },
+      embedMessageId: null,
+      respondents: {}
+    };
+    
+    // Créer l'embed Discord
+    const embedChan = await client.channels.fetch(updatedForm.embedChannelId);
+    const btn = new ButtonBuilder()
+      .setCustomId(`fill_${finalFormId}`)
+      .setLabel(updatedForm.buttonLabel)
+      .setStyle(ButtonStyle.Primary);
+    
+    const formEmbed = new EmbedBuilder()
+      .setTitle(updatedForm.title)
+      .setDescription(updatedForm.embedText);
+    
+    // Nouveau formulaire, envoyer un nouveau message
+    const sentMessage = await embedChan.send({
+      embeds: [formEmbed],
+      components: [new ActionRowBuilder().addComponents(btn)]
+    });
+    console.log(`Nouveau message de formulaire créé: ${sentMessage.id}`);
+    
+    // Mettre à jour l'ID du message
+    client.forms[guildId][finalFormId].embedMessageId = sentMessage.id;
+    
+    // Sauvegarder dans le fichier
+    fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
+    
+    res.json({ success: true, formId: finalFormId, redirect: '/success' });
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde du formulaire:', error);
+    res.status(500).json({ error: 'Erreur lors de la sauvegarde du formulaire', details: error.message });
+  }
+});
+
+// Page d'accueil simple
+app.get('/', (req, res) => {
+  if (req.session.user) {
+    res.redirect('/dashboard');
+  } else {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
+});
+
+// Liste des serveurs de l'utilisateur
+app.get('/api/guilds', isAuthenticated, async (req, res) => {
+  try {
+    // Récupérer tous les serveurs de l'utilisateur
+    const guildsResponse = await axios.get(`${DISCORD_API_URL}/users/@me/guilds`, {
+      headers: {
+        Authorization: `Bearer ${req.session.accessToken}`
+      }
+    });
+    
+    // Filtrer pour ne garder que les serveurs où l'utilisateur a la permission MANAGE_MESSAGES
+    // ou est administrateur ou propriétaire
+    const managableGuilds = guildsResponse.data.filter(guild => {
+      const permissions = BigInt(guild.permissions);
+      return (permissions & BigInt(0x2000)) !== BigInt(0); // MANAGE_MESSAGES uniquement
+    });
+    
+    // Vérifier si le bot est présent dans ces serveurs
+    const botGuilds = client.guilds.cache;
+    
+    // Ne garder que les serveurs où le bot est présent
+    const availableGuilds = managableGuilds.filter(guild => 
+      botGuilds.has(guild.id)
+    );
+    
+    // Ajouter des informations sur les formulaires existants
+    const guildsWithFormInfo = availableGuilds.map(guild => {
+      const formCount = client.forms[guild.id] ? Object.keys(client.forms[guild.id]).length : 0;
+      return {
+        ...guild,
+        formCount
+      };
+    });
+    
+    res.json(guildsWithFormInfo);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des serveurs:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des serveurs' });
+  }
+});
+
+// Liste des formulaires d'un serveur
+app.get('/api/forms/:guildId', isAuthenticated, hasGuildPermission, (req, res) => {
+  const { guildId } = req.params;
+  
+  // Vérifier si le serveur a des formulaires
+  if (!client.forms[guildId] || Object.keys(client.forms[guildId]).length === 0) {
+    return res.json([]);
+  }
+  
+  // Formatter les formulaires en tableau
+  const forms = Object.entries(client.forms[guildId]).map(([id, form]) => ({
+    id,
+    title: form.title,
+    questions: form.questions,
+    embedChannelId: form.embedChannelId,
+    responseChannelId: form.responseChannelId,
+    embedText: form.embedText,
+    buttonLabel: form.buttonLabel,
+    singleResponse: form.singleResponse,
+    reviewOptions: form.reviewOptions,
+    embedMessageId: form.embedMessageId,
+    respondents: form.respondents || {}
+  }));
+  
+  res.json(forms);
+});
+
+// Supprimer un formulaire
+app.delete('/api/forms/:guildId/:formId', isAuthenticated, hasGuildPermission, async (req, res) => {
+  const { guildId, formId } = req.params;
+  
+  try {
+    // Vérifier si le formulaire existe
+    if (!client.forms[guildId] || !client.forms[guildId][formId]) {
+      return res.status(404).json({ error: 'Formulaire introuvable' });
+    }
+    
+    // Supprimer l'embed du message Discord si possible
+    const form = client.forms[guildId][formId];
+    if (form.embedMessageId && form.embedChannelId) {
+      try {
+        const channel = await client.channels.fetch(form.embedChannelId);
+        const message = await channel.messages.fetch(form.embedMessageId);
+        await message.delete();
+        console.log(`Message de formulaire supprimé: ${form.embedMessageId}`);
+      } catch (error) {
+        console.error(`Impossible de supprimer le message Discord: ${error.message}`);
+        // On continue même si le message ne peut pas être supprimé
+      }
+    }
+    
+    // Supprimer le formulaire de la collection
+    delete client.forms[guildId][formId];
+    
+    // Si c'était le dernier formulaire du serveur, supprimer l'entrée du serveur
+    if (Object.keys(client.forms[guildId]).length === 0) {
+      delete client.forms[guildId];
+    }
+    
+    // Sauvegarder les modifications
+    fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
     
     res.json({ success: true });
   } catch (error) {
-    console.error('Erreur lors de la sauvegarde du formulaire:', error);
-    res.status(500).json({ error: 'Erreur lors de la sauvegarde du formulaire' });
+    console.error('Erreur lors de la suppression du formulaire:', error);
+    res.status(500).json({ error: 'Erreur lors de la suppression du formulaire' });
   }
+});
+
+// Récupérer les informations de l'utilisateur
+app.get('/api/user', isAuthenticated, (req, res) => {
+  res.json(req.session.user);
+});
+
+// Gestion des erreurs 404
+app.use((req, res) => {
+  res.redirect('/error?title=Page+non+trouvée&message=La+page+demandée+n%27existe+pas');
 });
 
 // Démarrer le serveur

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyForm - Formulaires Discord</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .hero {
+            background-color: #5865F2;
+            color: white;
+            padding: 4rem 2rem;
+            text-align: center;
+        }
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        .hero p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+            transition: background-color 0.2s;
+            font-size: 1.1rem;
+        }
+        .btn-primary {
+            background-color: white;
+            color: #5865F2;
+        }
+        .btn-primary:hover {
+            background-color: #f0f0f0;
+        }
+        .features {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 2rem;
+            margin: 3rem 0;
+        }
+        .feature {
+            flex: 1;
+            min-width: 300px;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            text-align: center;
+        }
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #5865F2;
+        }
+        .feature h2 {
+            margin-top: 0;
+            color: #5865F2;
+        }
+        .steps {
+            background-color: white;
+            padding: 3rem 0;
+            text-align: center;
+        }
+        .steps h2 {
+            margin-bottom: 3rem;
+            color: #5865F2;
+        }
+        .step-list {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .step {
+            flex: 1;
+            min-width: 250px;
+            position: relative;
+        }
+        .step-number {
+            background-color: #5865F2;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin: 0 auto 1rem;
+        }
+        .step h3 {
+            color: #5865F2;
+            margin-bottom: 0.5rem;
+        }
+        footer {
+            background-color: #2C2F33;
+            color: #99AAB5;
+            padding: 2rem;
+            text-align: center;
+        }
+        footer a {
+            color: white;
+            text-decoration: none;
+        }
+        footer a:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            .hero p {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <section class="hero">
+        <h1>MyForm</h1>
+        <p>Créez des formulaires interactifs pour votre serveur Discord en quelques clics. Recueillez facilement des informations, gérez des candidatures et bien plus encore.</p>
+        <a href="/auth/discord" class="btn btn-primary">Commencer avec Discord</a>
+    </section>
+
+    <div class="container">
+        <section class="features">
+            <div class="feature">
+                <div class="feature-icon">📋</div>
+                <h2>Formulaires simples</h2>
+                <p>Créez des formulaires interactifs directement dans Discord sans aucune connaissance technique. Interface utilisateur intuitive et conviviale.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔒</div>
+                <h2>Sécurisé</h2>
+                <p>Authentification via Discord. Seuls les utilisateurs avec les permissions adéquates peuvent créer et gérer des formulaires.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">⚙️</div>
+                <h2>Personnalisable</h2>
+                <p>Multiples types de questions, validation des réponses, et options de révision avec attribution de rôles automatique.</p>
+            </div>
+        </section>
+    </div>
+
+    <section class="steps">
+        <div class="container">
+            <h2>Comment ça marche</h2>
+            <div class="step-list">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Connectez-vous</h3>
+                    <p>Connectez-vous avec votre compte Discord et choisissez un serveur où vous avez les permissions requises.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Créez votre formulaire</h3>
+                    <p>Définissez vos questions, personnalisez l'apparence et choisissez où les réponses seront envoyées.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Partagez et gérez</h3>
+                    <p>Le formulaire apparaît sur votre serveur Discord. Gérez et examinez les réponses en toute simplicité.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>MyForm - 2025</p>
+            <p><a href="https://github.com" target="_blank">GitHub</a> | <a href="https://discord.com" target="_blank">Discord</a> | <a href="#" target="_blank">Conditions d'utilisation</a></p>
+        </div>
+    </footer>
+</body>
+</html>

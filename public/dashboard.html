@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyForm - Tableau de bord</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+        h1 {
+            color: #5865F2;
+            margin: 0;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+        }
+        .user-info img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 1rem;
+        }
+        .username {
+            font-weight: 600;
+        }
+        .logout-btn {
+            margin-left: 1rem;
+            color: #ED4245;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        .logout-btn:hover {
+            text-decoration: underline;
+        }
+        .guild-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+        .guild-card {
+            background-color: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .guild-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+        }
+        .guild-icon {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            background-color: #5865F2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 3rem;
+            font-weight: bold;
+        }
+        .guild-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .guild-info {
+            padding: 1.5rem;
+        }
+        .guild-name {
+            margin: 0 0 0.5rem 0;
+            font-size: 1.2rem;
+            color: #5865F2;
+        }
+        .guild-forms {
+            margin-bottom: 1rem;
+            color: #99AAB5;
+            font-size: 0.9rem;
+        }
+        .guild-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .btn {
+            flex: 1;
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+            transition: background-color 0.2s;
+            cursor: pointer;
+            border: none;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 0.9rem;
+        }
+        .btn-primary {
+            background-color: #5865F2;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #4752C4;
+        }
+        .btn-secondary {
+            background-color: #99AAB5;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #7A8993;
+        }
+        .btn-danger {
+            background-color: #ED4245;
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #D63638;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 3rem 0;
+            color: #99AAB5;
+        }
+        .empty-state h2 {
+            margin-bottom: 1rem;
+            color: #5865F2;
+        }
+        .loading {
+            text-align: center;
+            padding: 3rem 0;
+            color: #99AAB5;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(88, 101, 242, 0.3);
+            border-radius: 50%;
+            border-top-color: #5865F2;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 1rem;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none !important;
+        }
+        .back-button {
+            color: #5865F2;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+        .back-button:hover {
+            text-decoration: underline;
+        }
+        .back-button:before {
+            content: '←';
+            margin-right: 0.5rem;
+            font-size: 1.2rem;
+        }
+        .form-list {
+            width: 100%;
+        }
+        .form-item {
+            background-color: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .form-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+        }
+        .form-header {
+            background-color: #5865F2;
+            color: white;
+            padding: 1rem 1.5rem;
+        }
+        .form-header h3 {
+            margin: 0;
+        }
+        .form-content {
+            padding: 1.5rem;
+        }
+        .form-details {
+            margin-bottom: 1.5rem;
+        }
+        .form-details p {
+            margin: 0.5rem 0;
+            color: #666;
+        }
+        .form-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: white;
+            border-radius: 10px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        .modal-header {
+            margin-bottom: 1.5rem;
+        }
+        .modal-header h2 {
+            margin: 0;
+            color: #ED4245;
+        }
+        .modal-body {
+            margin-bottom: 1.5rem;
+        }
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+        }
+        .form-view-container {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Tableau de bord MyForm</h1>
+            <div class="user-info">
+                <img id="userAvatar" src="" alt="Avatar">
+                <span id="username" class="username"></span>
+                <a href="/logout" class="logout-btn">Déconnexion</a>
+            </div>
+        </header>
+
+        <!-- Vue des serveurs -->
+        <div id="guildsView">
+            <div class="loading" id="loading">
+                <div class="loading-spinner"></div>
+                <p>Chargement de vos serveurs...</p>
+            </div>
+
+            <div class="empty-state hidden" id="emptyState">
+                <h2>Aucun serveur trouvé</h2>
+                <p>Vous n'avez accès à aucun serveur où vous disposez des permissions "Gérer les messages".</p>
+                <p>Pour utiliser MyForm, vous devez avoir cette permission sur au moins un serveur.</p>
+            </div>
+
+            <div class="guild-grid" id="guildGrid">
+                <!-- Les cartes de serveurs seront ajoutées ici dynamiquement -->
+            </div>
+        </div>
+
+        <!-- Vue des formulaires d'un serveur -->
+        <div id="formsView" class="form-view-container">
+            <div class="back-button" id="backToServers">Retour aux serveurs</div>
+            
+            <h2 id="serverName">Formulaires du serveur</h2>
+            
+            <div class="loading" id="loadingForms">
+                <div class="loading-spinner"></div>
+                <p>Chargement des formulaires...</p>
+            </div>
+            
+            <div class="empty-state hidden" id="emptyForms">
+                <h2>Aucun formulaire trouvé</h2>
+                <p>Ce serveur n'a pas encore de formulaires.</p>
+                <button id="createNewForm" class="btn btn-primary">Créer un formulaire</button>
+            </div>
+            
+            <div class="form-list" id="formsList">
+                <!-- La liste des formulaires sera ajoutée ici -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de confirmation de suppression -->
+    <div id="deleteModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Confirmer la suppression</h2>
+            </div>
+            <div class="modal-body">
+                <p>Êtes-vous sûr de vouloir supprimer ce formulaire ? Cette action est irréversible.</p>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelDelete" class="btn btn-secondary">Annuler</button>
+                <button id="confirmDelete" class="btn btn-danger">Supprimer</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Éléments DOM
+            const userAvatar = document.getElementById('userAvatar');
+            const username = document.getElementById('username');
+            const loading = document.getElementById('loading');
+            const emptyState = document.getElementById('emptyState');
+            const guildGrid = document.getElementById('guildGrid');
+            const guildsView = document.getElementById('guildsView');
+            const formsView = document.getElementById('formsView');
+            const backToServers = document.getElementById('backToServers');
+            const serverNameHeading = document.getElementById('serverName');
+            const loadingForms = document.getElementById('loadingForms');
+            const emptyForms = document.getElementById('emptyForms');
+            const formsList = document.getElementById('formsList');
+            const createNewForm = document.getElementById('createNewForm');
+            const deleteModal = document.getElementById('deleteModal');
+            const cancelDelete = document.getElementById('cancelDelete');
+            const confirmDelete = document.getElementById('confirmDelete');
+            
+            // Variables globales
+            let currentGuildId = null;
+            let formToDelete = null;
+
+            // Fonction pour charger les serveurs
+            async function loadGuilds() {
+                try {
+                    const response = await fetch('/api/guilds');
+                    
+                    if (!response.ok) {
+                        throw new Error('Erreur lors du chargement des serveurs');
+                    }
+                    
+                    const guilds = await response.json();
+                    
+                    // Récupérer les informations de l'utilisateur
+                    if (guilds.length > 0 && guilds[0].user) {
+                        const user = guilds[0].user;
+                        userAvatar.src = `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`;
+                        username.textContent = user.username;
+                    } else if (guilds.length > 0) {
+                        // Récupérer directement depuis la session si disponible
+                        try {
+                            const userInfoResponse = await fetch('/api/user');
+                            if (userInfoResponse.ok) {
+                                const userData = await userInfoResponse.json();
+                                if (userData.avatar) {
+                                    userAvatar.src = `https://cdn.discordapp.com/avatars/${userData.id}/${userData.avatar}.png`;
+                                    username.textContent = userData.username;
+                                }
+                            }
+                        } catch (e) {
+                            console.error('Erreur lors de la récupération des informations utilisateur:', e);
+                        }
+                    }
+                    
+                    // Afficher les serveurs ou l'état vide
+                    if (guilds.length === 0) {
+                        emptyState.classList.remove('hidden');
+                    } else {
+                        renderGuilds(guilds);
+                    }
+                } catch (error) {
+                    console.error('Erreur:', error);
+                    emptyState.classList.remove('hidden');
+                    emptyState.querySelector('p').textContent = `Erreur: ${error.message}`;
+                } finally {
+                    loading.classList.add('hidden');
+                }
+            }
+
+            // Fonction pour afficher les serveurs
+            function renderGuilds(guilds) {
+                guildGrid.innerHTML = '';
+                
+                guilds.forEach(guild => {
+                    const guildCard = document.createElement('div');
+                    guildCard.className = 'guild-card';
+                    
+                    let iconHtml;
+                    if (guild.icon) {
+                        iconHtml = `<img src="https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png" alt="${guild.name}">`;
+                    } else {
+                        // Utiliser les initiales du serveur comme icône de remplacement
+                        const initials = guild.name
+                            .split(' ')
+                            .map(n => n[0])
+                            .join('')
+                            .substring(0, 2)
+                            .toUpperCase();
+                        iconHtml = initials;
+                    }
+                    
+                    guildCard.innerHTML = `
+                        <div class="guild-icon">${iconHtml}</div>
+                        <div class="guild-info">
+                            <h2 class="guild-name">${guild.name}</h2>
+                            <p class="guild-forms">${guild.formCount || 0} formulaire(s)</p>
+                            <div class="guild-actions">
+                                <a href="/create/${guild.id}" class="btn btn-primary">Nouveau formulaire</a>
+                                ${guild.formCount > 0 ? `<button class="btn btn-secondary view-forms" data-id="${guild.id}" data-name="${guild.name}">Voir les formulaires</button>` : ''}
+                            </div>
+                        </div>
+                    `;
+                    
+                    guildGrid.appendChild(guildCard);
+                });
+
+                // Ajouter des écouteurs d'événements aux boutons "Voir les formulaires"
+                const viewFormsButtons = document.querySelectorAll('.view-forms');
+                viewFormsButtons.forEach(button => {
+                    button.addEventListener('click', function() {
+                        const guildId = this.dataset.id;
+                        const guildName = this.dataset.name;
+                        showFormsForGuild(guildId, guildName);
+                    });
+                });
+            }
+
+            // Fonction pour afficher les formulaires d'un serveur
+            async function showFormsForGuild(guildId, guildName) {
+                // Masquer la vue des serveurs et afficher la vue des formulaires
+                guildsView.style.display = 'none';
+                formsView.style.display = 'block';
+                
+                // Mettre à jour le titre avec le nom du serveur
+                serverNameHeading.textContent = `Formulaires de ${guildName}`;
+                
+                // Stocker l'ID du serveur actuel
+                currentGuildId = guildId;
+                
+                // Afficher le chargement
+                loadingForms.classList.remove('hidden');
+                emptyForms.classList.add('hidden');
+                formsList.innerHTML = '';
+                
+                try {
+                    // Récupérer les formulaires depuis l'API
+                    const response = await fetch(`/api/forms/${guildId}`);
+                    
+                    if (!response.ok) {
+                        throw new Error('Erreur lors du chargement des formulaires');
+                    }
+                    
+                    const forms = await response.json();
+                    
+                    // Masquer le chargement
+                    loadingForms.classList.add('hidden');
+                    
+                    // Afficher les formulaires ou l'état vide
+                    if (!forms || forms.length === 0) {
+                        emptyForms.classList.remove('hidden');
+                    } else {
+                        renderForms(forms);
+                    }
+                } catch (error) {
+                    console.error('Erreur:', error);
+                    loadingForms.classList.add('hidden');
+                    emptyForms.classList.remove('hidden');
+                    emptyForms.querySelector('p').textContent = `Erreur: ${error.message}`;
+                }
+            }
+
+            // Fonction pour afficher la liste des formulaires
+            function renderForms(forms) {
+                formsList.innerHTML = '';
+                
+                forms.forEach(form => {
+                    const formItem = document.createElement('div');
+                    formItem.className = 'form-item';
+                    
+                    const questionCount = form.questions ? form.questions.length : 0;
+                    const responseCount = form.respondents ? Object.keys(form.respondents).length : 0;
+                    
+                    formItem.innerHTML = `
+                        <div class="form-header">
+                            <h3>${form.title}</h3>
+                        </div>
+                        <div class="form-content">
+                            <div class="form-details">
+                                <p><strong>${questionCount}</strong> question(s)</p>
+                                <p><strong>${responseCount}</strong> réponse(s)</p>
+                                <p>Réponse unique: <strong>${form.singleResponse ? 'Oui' : 'Non'}</strong></p>
+                                <p>Révision: <strong>${form.reviewOptions && form.reviewOptions.enabled ? 'Activée' : 'Désactivée'}</strong></p>
+                            </div>
+                            <div class="form-actions">
+                                <a href="/edit/${currentGuildId}/${form.id}" class="btn btn-primary">Modifier</a>
+                                <button class="btn btn-danger delete-form" data-id="${form.id}">Supprimer</button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    formsList.appendChild(formItem);
+                });
+                
+                // Ajouter des écouteurs d'événements aux boutons de suppression
+                const deleteButtons = document.querySelectorAll('.delete-form');
+                deleteButtons.forEach(button => {
+                    button.addEventListener('click', function() {
+                        showDeleteConfirmation(this.dataset.id);
+                    });
+                });
+            }
+
+            // Fonction pour afficher le modal de confirmation de suppression
+            function showDeleteConfirmation(formId) {
+                formToDelete = formId;
+                deleteModal.classList.remove('hidden');
+            }
+
+            // Fonction pour supprimer un formulaire
+            async function deleteForm(formId) {
+                try {
+                    const response = await fetch(`/api/forms/${currentGuildId}/${formId}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Erreur lors de la suppression du formulaire');
+                    }
+                    
+                    // Actualiser la liste des formulaires
+                    const guildName = serverNameHeading.textContent.replace('Formulaires de ', '');
+                    showFormsForGuild(currentGuildId, guildName);
+                } catch (error) {
+                    console.error('Erreur:', error);
+                    alert(`Erreur lors de la suppression du formulaire: ${error.message}`);
+                }
+            }
+
+            // Écouteurs d'événements
+            backToServers.addEventListener('click', function() {
+                formsView.style.display = 'none';
+                guildsView.style.display = 'block';
+            });
+            
+            createNewForm.addEventListener('click', function() {
+                window.location.href = `/create/${currentGuildId}`;
+            });
+            
+            cancelDelete.addEventListener('click', function() {
+                deleteModal.classList.add('hidden');
+                formToDelete = null;
+            });
+            
+            confirmDelete.addEventListener('click', function() {
+                if (formToDelete) {
+                    deleteForm(formToDelete);
+                    deleteModal.classList.add('hidden');
+                    formToDelete = null;
+                }
+            });
+
+            // Charger les serveurs au chargement de la page
+            loadGuilds();
+        });
+    </script>
+</body>
+</html>

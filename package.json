@@ -10,11 +10,13 @@
   "author": "0xyToan",
   "license": "ISC",
   "dependencies": {
+    "axios": "^1.9.0",
     "body-parser": "^2.2.0",
     "cookie-parser": "^1.4.7",
     "crypto": "^1.0.1",
     "discord.js": "^14.0.0",
     "express": "^5.1.0",
+    "express-session": "^1.18.1",
     "fs-extra": "^10.0.0"
   }
 }
