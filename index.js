@@ -697,6 +697,9 @@ app.use(session({
   }
 }));
 
+// Middleware pour gérer les en-têtes de proxy
+app.set('trust proxy', true);
+
 // Discord OAuth2 URLs
 const DISCORD_API_URL = 'https://discord.com/api/v10';
 const OAUTH_REDIRECT_URI = `${config.webserver.baseUrl}/auth/discord/callback`;
