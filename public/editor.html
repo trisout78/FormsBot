@@ -143,7 +143,7 @@
             color: #000;
         }
         .hidden {
-            display: none;
+            display: none !important;
         }
         .checkbox-group {
             display: flex;
@@ -200,9 +200,47 @@
             margin: 0;
             color: #5865F2;
         }
+        /* Style pour l'indicateur de chargement */
+        .loading-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            flex-direction: column;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(88, 101, 242, 0.3);
+            border-radius: 50%;
+            border-top-color: #5865F2;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 1rem;
+        }
+        .loading-text {
+            font-size: 1.2rem;
+            color: #5865F2;
+            font-weight: 500;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
+    <!-- Indicateur de chargement -->
+    <div id="loadingOverlay" class="loading-container">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Chargement du formulaire...</div>
+    </div>
+
     <div class="container">
         <div id="userInfo" class="user-info hidden">
             <img id="userAvatar" src="" alt="Avatar">
@@ -479,9 +517,15 @@
                             rejectRoleSelect.value = data.form.reviewOptions.rejectRoleId || '';
                         }
                     }
+                    
+                    // Masquer l'indicateur de chargement une fois que tout est chargé
+                    document.getElementById('loadingOverlay').classList.add('hidden');
                 } catch (error) {
                     console.error('Erreur:', error);
                     showAlert('Erreur lors du chargement des données: ' + error.message, 'error');
+                    
+                    // Masquer l'indicateur de chargement même en cas d'erreur
+                    document.getElementById('loadingOverlay').classList.add('hidden');
                 }
             }
             
