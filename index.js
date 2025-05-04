@@ -14,6 +14,27 @@ const session = require('express-session');
 const axios = require('axios');
 const url = require('url');
 
+// Fonction utilitaire pour envoyer des logs au webhook Discord
+async function logToWebhook(title, description, fields = [], color = 0x3498db) {
+  try {
+    if (!config.webhookUrl) return;
+    
+    const embed = {
+      title: title,
+      description: description,
+      color: color,
+      fields: fields,
+      timestamp: new Date().toISOString()
+    };
+    
+    await axios.post(config.webhookUrl, {
+      embeds: [embed]
+    });
+  } catch (error) {
+    console.error('Erreur lors de l\'envoi du log au webhook:', error);
+  }
+}
+
 // Configuration du client Discord
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const rest = new REST().setToken(config.token);
@@ -98,6 +119,40 @@ client.once(Events.ClientReady, async () => {
   console.log(`Logged in as ${client.user.tag}`);
   // register commands for all current guilds
   client.guilds.cache.forEach(g => registerGuildCommands(g.id));
+  
+  // Log le démarrage du bot
+  await logToWebhook(
+    "🟢 Bot démarré", 
+    `Le bot **${client.user.tag}** est maintenant en ligne.`,
+    [
+      { name: "Date", value: new Date().toLocaleString(), inline: true },
+      { name: "Serveurs", value: client.guilds.cache.size.toString(), inline: true }
+    ],
+    0x57F287 // Couleur verte
+  );
+});
+
+// Log quand le bot s'arrête
+process.on('SIGINT', async () => {
+  console.log('Bot arrêté avec SIGINT');
+  await logToWebhook(
+    "🔴 Bot arrêté", 
+    "Le bot a été arrêté manuellement.",
+    [{ name: "Date", value: new Date().toLocaleString(), inline: true }],
+    0xED4245 // Couleur rouge
+  );
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('Bot arrêté avec SIGTERM');
+  await logToWebhook(
+    "🔴 Bot arrêté", 
+    "Le bot a été arrêté par le système.",
+    [{ name: "Date", value: new Date().toLocaleString(), inline: true }],
+    0xED4245 // Couleur rouge
+  );
+  process.exit(0);
 });
 
 // register commands when bot joins a new guild
@@ -219,6 +274,20 @@ client.on(Events.InteractionCreate, async interaction => {
         
         // Mettre à jour le message avec la nouvelle embed et les boutons appropriés
         await message.edit({ embeds: [updatedEmbed], components: components });
+        
+        // Log de l'action d'acceptation/refus
+        await logToWebhook(
+          isAccept ? "✅ Réponse acceptée" : "❌ Réponse refusée", 
+          `**${interaction.user.tag}** a ${isAccept ? 'accepté' : 'refusé'} la réponse de **${userId ? `<@${userId}>` : 'utilisateur inconnu'}** au formulaire "${form.title}"`,
+          [
+            { name: "Modérateur", value: `${interaction.user.tag} (ID: ${interaction.user.id})`, inline: true },
+            { name: "Action", value: isAccept ? "Acceptation" : "Refus", inline: true },
+            { name: "Formulaire", value: form.title, inline: true },
+            { name: "Serveur", value: interaction.guild.name, inline: false },
+            { name: "Lien", value: `[Voir la réponse](https://discord.com/channels/${interaction.guild.id}/${form.responseChannelId}/${messageId})`, inline: false }
+          ],
+          isAccept ? 0x57F287 : 0xED4245 // Vert si accepté, rouge si refusé
+        );
         
         // Notifier le membre si spécifié et si l'utilisateur existe
         try {
@@ -535,6 +604,18 @@ client.on(Events.InteractionCreate, async interaction => {
       
       // Vérifier si l'utilisateur a déjà répondu (si singleResponse est activé)
       if (form.singleResponse && form.respondents && form.respondents[interaction.user.id]) {
+        // Log de tentative de réponse multiple
+        await logToWebhook(
+          "🚫 Tentative de réponse multiple", 
+          `**${interaction.user.tag}** a essayé de répondre à nouveau au formulaire "${form.title}" alors qu'il a déjà répondu.`,
+          [
+            { name: "Utilisateur", value: `${interaction.user.tag} (ID: ${interaction.user.id})`, inline: true },
+            { name: "Formulaire", value: form.title, inline: true },
+            { name: "Serveur", value: interaction.guild.name, inline: true }
+          ],
+          0xFEE75C // Couleur jaune
+        );
+        
         return interaction.reply({ 
           content: 'Vous avez déjà répondu à ce formulaire. Vous ne pouvez pas répondre à nouveau.', 
           ephemeral: true 
@@ -599,6 +680,19 @@ client.on(Events.InteractionCreate, async interaction => {
         };
         fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
       }
+
+      // Log de soumission de formulaire
+      await logToWebhook(
+        "📝 Formulaire soumis", 
+        `**${interaction.user.tag}** a répondu au formulaire "${form.title}"`,
+        [
+          { name: "Utilisateur", value: `${interaction.user.tag} (ID: ${interaction.user.id})`, inline: true },
+          { name: "Formulaire", value: form.title, inline: true },
+          { name: "Serveur", value: interaction.guild.name, inline: true },
+          { name: "Lien", value: `[Voir la réponse](https://discord.com/channels/${interaction.guild.id}/${form.responseChannelId}/${messageId})`, inline: false }
+        ],
+        0x57F287 // Couleur verte
+      );
       
       await interaction.reply({ content: 'Merci pour vos réponses !', ephemeral: true });
       return;
@@ -849,6 +943,17 @@ app.get('/auth/discord/callback', async (req, res) => {
     req.session.refreshToken = refresh_token;
     req.session.expiresAt = Date.now() + expires_in * 1000;
     req.session.user = userResponse.data;
+    
+    // Log de connexion au panel web
+    await logToWebhook(
+      "👤 Connexion au panel web", 
+      `**${userResponse.data.username}** s'est connecté au panel web.`,
+      [
+        { name: "Utilisateur", value: `${userResponse.data.username} (ID: ${userResponse.data.id})`, inline: true },
+        { name: "Date", value: new Date().toLocaleString(), inline: true }
+      ],
+      0x5865F2 // Couleur bleu Discord
+    );
 
     // Rediriger vers la page d'origine ou le tableau de bord par défaut
     const returnTo = req.session.returnTo || '/dashboard';
@@ -989,6 +1094,9 @@ app.post('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, asyn
     // Récupérer l'ID du message existant si c'est une modification
     const existingMessageId = formId && client.forms[guildId][finalFormId]?.embedMessageId;
     
+    // Stocker l'ancien formulaire pour les logs
+    const oldForm = client.forms[guildId][finalFormId] ? {...client.forms[guildId][finalFormId]} : null;
+    
     // Sauvegarder le formulaire
     client.forms[guildId][finalFormId] = {
       title: updatedForm.title,
@@ -1048,6 +1156,23 @@ app.post('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, asyn
     
     // Sauvegarder dans le fichier
     fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
+    
+    // Log de modification de formulaire
+    if (oldForm) {
+      const guild = client.guilds.cache.get(guildId);
+      await logToWebhook(
+        "📝 Modification de formulaire", 
+        `**${req.session.user.username}** a modifié le formulaire "${updatedForm.title}" sur le serveur **${guild?.name || guildId}**`,
+        [
+          { name: "Titre", value: updatedForm.title, inline: true },
+          { name: "Questions", value: `${updatedForm.questions.length}`, inline: true },
+          { name: "Serveur", value: guild?.name || guildId, inline: true },
+          { name: "Utilisateur", value: `${req.session.user.username} (ID: ${req.session.user.id})`, inline: false },
+          { name: "Modifications", value: `Canal embed: ${oldForm.embedChannelId !== updatedForm.embedChannelId ? '✅' : '❌'}\nCanal réponses: ${oldForm.responseChannelId !== updatedForm.responseChannelId ? '✅' : '❌'}\nQuestions: ${JSON.stringify(oldForm.questions) !== JSON.stringify(updatedForm.questions) ? '✅' : '❌'}`, inline: false }
+        ],
+        0xFEE75C // Couleur jaune
+      );
+    }
     
     res.json({ success: true, redirect: '/success' });
   } catch (error) {
@@ -1114,6 +1239,20 @@ app.post('/api/form/:guildId', isAuthenticated, hasGuildPermission, async (req, 
     
     // Sauvegarder dans le fichier
     fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
+    
+    // Log de création de formulaire
+    const guild = client.guilds.cache.get(guildId);
+    await logToWebhook(
+      "✨ Création de formulaire", 
+      `**${req.session.user.username}** a créé un nouveau formulaire "${updatedForm.title}" sur le serveur **${guild?.name || guildId}**`,
+      [
+        { name: "Titre", value: updatedForm.title, inline: true },
+        { name: "Questions", value: `${updatedForm.questions.length}`, inline: true },
+        { name: "Serveur", value: guild?.name || guildId, inline: true },
+        { name: "Utilisateur", value: `${req.session.user.username} (ID: ${req.session.user.id})`, inline: false }
+      ],
+      0x3498DB // Couleur bleue
+    );
     
     res.json({ success: true, formId: finalFormId, redirect: '/success' });
   } catch (error) {
@@ -1209,8 +1348,11 @@ app.delete('/api/forms/:guildId/:formId', isAuthenticated, hasGuildPermission, a
       return res.status(404).json({ error: 'Formulaire introuvable' });
     }
     
-    // Supprimer l'embed du message Discord si possible
+    // Récupérer les informations du formulaire pour le log
     const form = client.forms[guildId][formId];
+    const guild = client.guilds.cache.get(guildId);
+    
+    // Supprimer l'embed du message Discord si possible
     if (form.embedMessageId && form.embedChannelId) {
       try {
         const channel = await client.channels.fetch(form.embedChannelId);
@@ -1233,6 +1375,18 @@ app.delete('/api/forms/:guildId/:formId', isAuthenticated, hasGuildPermission, a
     
     // Sauvegarder les modifications
     fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
+    
+    // Log de suppression de formulaire
+    await logToWebhook(
+      "🗑️ Suppression de formulaire", 
+      `**${req.session.user.username}** a supprimé le formulaire "${form.title}" du serveur **${guild?.name || guildId}**`,
+      [
+        { name: "Titre", value: form.title, inline: true },
+        { name: "Serveur", value: guild?.name || guildId, inline: true },
+        { name: "Utilisateur", value: `${req.session.user.username} (ID: ${req.session.user.id})`, inline: false }
+      ],
+      0xED4245 // Couleur rouge
+    );
     
     res.json({ success: true });
   } catch (error) {
