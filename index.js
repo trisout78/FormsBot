@@ -351,7 +351,7 @@ client.on(Events.InteractionCreate, async interaction => {
           const deleteButton = new ButtonBuilder()
             .setCustomId(`delete_response_${formId}_${messageId}`)
             .setLabel('Supprimer la réponse')
-            .setStyle(ButtonStyle.Danger);
+            .setStyle(ButtonStyle.Secondary);
           
           const row = new ActionRowBuilder().addComponents(deleteButton);
           components = [row];
@@ -479,7 +479,7 @@ client.on(Events.InteractionCreate, async interaction => {
           const deleteButton = new ButtonBuilder()
             .setCustomId(`delete_response_${formId}_${messageId}`)
             .setLabel('Supprimer la réponse')
-            .setStyle(ButtonStyle.Danger);
+            .setStyle(ButtonStyle.Secondary);
           
           const row = new ActionRowBuilder().addComponents(deleteButton);
           components = [row];
@@ -877,7 +877,7 @@ client.on(Events.InteractionCreate, async interaction => {
           const deleteButton = new ButtonBuilder()
             .setCustomId(`delete_response_${formId}_${messageId}`)
             .setLabel('Supprimer la réponse')
-            .setStyle(ButtonStyle.Danger);
+            .setStyle(ButtonStyle.Secondary);
           buttons.push(deleteButton);
         }
         
@@ -1005,7 +1005,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const deleteButton = new ButtonBuilder()
         .setCustomId(`delete_response_${formId}_${messageId}`)
         .setLabel('Supprimer la réponse')
-        .setStyle(ButtonStyle.Danger);
+        .setStyle(ButtonStyle.Secondary);
       buttons.push(deleteButton);
     }
     
