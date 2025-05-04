@@ -292,24 +292,46 @@ client.on(Events.InteractionCreate, async interaction => {
   if (interaction.isButton() && (interaction.customId.startsWith('accept_response_') || interaction.customId.startsWith('reject_response_'))) {
     console.log('Bouton de révision détecté:', interaction.customId);
     try {
-      // Déférer la réponse immédiatement
-      await interaction.deferReply({ ephemeral: true });
-      
       const isAccept = interaction.customId.startsWith('accept_response_');
       const [action, , formId, messageId, userId] = interaction.customId.split('_');
       console.log(`Tentative de ${isAccept ? 'acceptation' : 'refus'}: formId=${formId}, messageId=${messageId}, userId=${userId}`);
       
       // Vérifier les permissions
       if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
-        return await interaction.editReply({ content: 'Vous n\'avez pas la permission pour cette action.', ephemeral: true });
+        return await interaction.reply({ content: 'Vous n\'avez pas la permission pour cette action.', ephemeral: true });
       }
 
       const form = client.forms[interaction.guildId]?.[formId];
       if (!form || !form.reviewOptions || !form.reviewOptions.enabled) {
         console.log('Formulaire introuvable ou révision désactivée:', formId);
-        return await interaction.editReply({ content: 'Formulaire introuvable ou révision désactivée.', ephemeral: true });
+        return await interaction.reply({ content: 'Formulaire introuvable ou révision désactivée.', ephemeral: true });
       }
 
+      // Vérifier si les messages personnalisés sont activés
+      if (form.reviewOptions.customMessagesEnabled) {
+        // Créer un modal pour permettre au modérateur de saisir un message personnalisé
+        const modal = new ModalBuilder()
+          .setCustomId(`custom_message_${isAccept ? 'accept' : 'reject'}_${formId}_${messageId}_${userId}`)
+          .setTitle(`Message personnalisé (${isAccept ? 'Acceptation' : 'Refus'})`)
+          .addComponents(
+            new ActionRowBuilder().addComponents(
+              new TextInputBuilder()
+                .setCustomId('custom_message_input')
+                .setLabel('Message à envoyer à l\'utilisateur')
+                .setPlaceholder(isAccept ? form.reviewOptions.acceptMessage : form.reviewOptions.rejectMessage)
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(false)
+            )
+          );
+
+        await interaction.showModal(modal);
+        return; // On s'arrête ici car le traitement continue dans le gestionnaire de modal
+      }
+
+      // Si les messages personnalisés ne sont pas activés, on continue avec le comportement habituel
+      // Déférer la réponse immédiatement
+      await interaction.deferReply({ ephemeral: true });
+      
       try {
         // Récupérer et mettre à jour le message
         console.log('Récupération du salon de réponses:', form.responseChannelId);
@@ -403,6 +425,138 @@ client.on(Events.InteractionCreate, async interaction => {
       try {
         if (!interaction.replied) {
           await interaction.reply({ content: 'Une erreur est survenue.', ephemeral: true });
+        }
+      } catch (e) {
+        console.error('Impossible de répondre à l\'interaction:', e);
+      }
+    }
+    return;
+  }
+
+  // Gestionnaire spécifique pour les modals de messages personnalisés
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('custom_message_')) {
+    try {
+      await interaction.deferReply({ ephemeral: true });
+      
+      const parts = interaction.customId.split('_');
+      const isAccept = parts[2] === 'accept';
+      const formId = parts[3];
+      const messageId = parts[4];
+      const userId = parts[5];
+      
+      console.log(`Traitement du message personnalisé pour ${isAccept ? 'acceptation' : 'refus'}: formId=${formId}, messageId=${messageId}, userId=${userId}`);
+      
+      const form = client.forms[interaction.guildId]?.[formId];
+      if (!form || !form.reviewOptions || !form.reviewOptions.enabled) {
+        console.log('Formulaire introuvable ou révision désactivée:', formId);
+        return await interaction.editReply({ content: 'Formulaire introuvable ou révision désactivée.', ephemeral: true });
+      }
+      
+      // Récupérer le message personnalisé saisi
+      const customMessage = interaction.fields.getTextInputValue('custom_message_input');
+      const defaultMessage = isAccept 
+        ? (form.reviewOptions.acceptMessage || 'Votre réponse a été acceptée.')
+        : (form.reviewOptions.rejectMessage || 'Votre réponse a été refusée.');
+      
+      const messageToSend = customMessage || defaultMessage;
+      
+      try {
+        // Récupérer et mettre à jour le message
+        console.log('Récupération du salon de réponses:', form.responseChannelId);
+        const responseChannel = await client.channels.fetch(form.responseChannelId);
+        console.log('Récupération du message:', messageId);
+        const message = await responseChannel.messages.fetch(messageId);
+        
+        // Créer une nouvelle embed pour remplacer l'existante
+        const existingEmbed = message.embeds[0];
+        const updatedEmbed = EmbedBuilder.from(existingEmbed)
+          .setColor(isAccept ? '#57F287' : '#ED4245')
+          .setFooter({ text: isAccept ? '✅ Accepté' : '❌ Refusé' });
+        
+        // Conserver le bouton de suppression si c'est un formulaire à réponse unique
+        let components = [];
+        if (form.singleResponse) {
+          const deleteButton = new ButtonBuilder()
+            .setCustomId(`delete_response_${formId}_${messageId}`)
+            .setLabel('Supprimer la réponse')
+            .setStyle(ButtonStyle.Danger);
+          
+          const row = new ActionRowBuilder().addComponents(deleteButton);
+          components = [row];
+        }
+        
+        // Mettre à jour le message avec la nouvelle embed et les boutons appropriés
+        await message.edit({ embeds: [updatedEmbed], components: components });
+        
+        // Log de l'action d'acceptation/refus
+        await logToWebhook(
+          isAccept ? "✅ Réponse acceptée (Message personnalisé)" : "❌ Réponse refusée (Message personnalisé)", 
+          `**${interaction.user.tag}** a ${isAccept ? 'accepté' : 'refusé'} la réponse de **${userId ? `<@${userId}>` : 'utilisateur inconnu'}** au formulaire "${form.title}" avec un message personnalisé`,
+          [
+            { name: "Modérateur", value: `${interaction.user.tag} (ID: ${interaction.user.id})`, inline: true },
+            { name: "Action", value: isAccept ? "Acceptation" : "Refus", inline: true },
+            { name: "Formulaire", value: form.title, inline: true },
+            { name: "Message personnalisé", value: messageToSend.substring(0, 1000), inline: false },
+            { name: "Serveur", value: interaction.guild.name, inline: false },
+            { name: "Lien", value: `[Voir la réponse](https://discord.com/channels/${interaction.guild.id}/${form.responseChannelId}/${messageId})`, inline: false }
+          ],
+          isAccept ? 0x57F287 : 0xED4245 // Vert si accepté, rouge si refusé
+        );
+        
+        // Notifier le membre avec le message personnalisé
+        try {
+          if (userId) {
+            const target = await client.users.fetch(userId);
+            await target.send(messageToSend);
+            
+            // Ajouter le rôle si spécifié et si l'utilisateur est dans le serveur
+            const member = await interaction.guild.members.fetch(userId).catch(() => null);
+            if (member) {
+              const roleId = isAccept ? form.reviewOptions.acceptRoleId : form.reviewOptions.rejectRoleId;
+              if (roleId) {
+                await member.roles.add(roleId).catch(err => {
+                  console.error(`Erreur lors de l'ajout du rôle ${roleId} à ${userId}:`, err);
+                });
+              }
+            }
+            
+            // Conserver l'entrée dans les respondents pour empêcher la réponse multiple si singleResponse est activé
+            if (form.singleResponse) {
+              form.respondents = form.respondents || {};
+              if (!form.respondents[userId]) {
+                form.respondents[userId] = { responded: true, messageId: messageId };
+              }
+              await fs.writeJson(client.formsPath, client.forms, { spaces: 2 });
+              console.log(`État du répondant ${userId} maintenu pour empêcher les réponses multiples`);
+            }
+          }
+        } catch (err) {
+          console.error('Erreur lors de la notification de l\'utilisateur:', err);
+          await interaction.editReply({ 
+            content: `La réponse a été ${isAccept ? 'acceptée' : 'refusée'} avec succès, mais il y a eu une erreur lors de l'envoi du message à l'utilisateur.`, 
+            ephemeral: true 
+          });
+          return;
+        }
+        
+        await interaction.editReply({ 
+          content: `La réponse a été ${isAccept ? 'acceptée' : 'refusée'} avec succès et le message personnalisé a été envoyé.`, 
+          ephemeral: true 
+        });
+      } catch (error) {
+        console.error('Erreur lors du traitement de la réponse:', error);
+        await interaction.editReply({ 
+          content: `Erreur lors du traitement de la réponse: ${error.message}`, 
+          ephemeral: true 
+        });
+      }
+    } catch (error) {
+      console.error('Erreur générale lors du traitement du message personnalisé:', error);
+      try {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: 'Une erreur est survenue.', ephemeral: true });
+        } else if (interaction.deferred) {
+          await interaction.editReply({ content: 'Une erreur est survenue.', ephemeral: true });
         }
       } catch (e) {
         console.error('Impossible de répondre à l\'interaction:', e);

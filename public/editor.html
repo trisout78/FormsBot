@@ -333,13 +333,19 @@
             <label for="reviewEnabled">Activer la revue (Accepter/Refuser)</label>
         </div>
         <div id="reviewOptionsContainer" class="hidden">
-            <div class="form-group">
-                <label for="acceptMessage">Message d'acceptation</label>
-                <textarea id="acceptMessage" rows="2" placeholder="Message envoyé lors de l'acceptation"></textarea>
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="customMessagesEnabled">
+                <label for="customMessagesEnabled">Permettre d'envoyer des messages personnalisés à l'acceptation/refus</label>
             </div>
-            <div class="form-group">
-                <label for="rejectMessage">Message de refus</label>
-                <textarea id="rejectMessage" rows="2" placeholder="Message envoyé lors du refus"></textarea>
+            <div id="defaultMessagesContainer">
+                <div class="form-group">
+                    <label for="acceptMessage">Message d'acceptation</label>
+                    <textarea id="acceptMessage" rows="2" placeholder="Message envoyé lors de l'acceptation"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="rejectMessage">Message de refus</label>
+                    <textarea id="rejectMessage" rows="2" placeholder="Message envoyé lors du refus"></textarea>
+                </div>
             </div>
             <div class="form-group">
                 <label for="acceptRole">Rôle à attribuer en cas d'acceptation (optionnel)</label>
@@ -416,6 +422,7 @@
             const singleResponseCheckbox = document.getElementById('singleResponse');
             const reviewEnabledCheckbox = document.getElementById('reviewEnabled');
             const reviewOptionsContainer = document.getElementById('reviewOptionsContainer');
+            const customMessagesEnabledCheckbox = document.getElementById('customMessagesEnabled');
             const acceptMessageInput = document.getElementById('acceptMessage');
             const rejectMessageInput = document.getElementById('rejectMessage');
             const acceptRoleSelect = document.getElementById('acceptRole');
@@ -495,11 +502,16 @@
                     // Initialiser les options de revue
                     if (data.form.reviewOptions) {
                         reviewEnabledCheckbox.checked = data.form.reviewOptions.enabled;
+                        customMessagesEnabledCheckbox.checked = data.form.reviewOptions.customMessagesEnabled || false;
                         acceptMessageInput.value = data.form.reviewOptions.acceptMessage || '';
                         rejectMessageInput.value = data.form.reviewOptions.rejectMessage || '';
                         acceptRoleSelect.value = data.form.reviewOptions.acceptRoleId || '';
                         rejectRoleSelect.value = data.form.reviewOptions.rejectRoleId || '';
                         reviewOptionsContainer.classList.toggle('hidden', !data.form.reviewOptions.enabled);
+                        
+                        // Masquer les champs de message par défaut si les messages personnalisés sont activés
+                        const defaultMessagesContainer = document.getElementById('defaultMessagesContainer');
+                        defaultMessagesContainer.classList.toggle('hidden', customMessagesEnabledCheckbox.checked);
                     }
                     
                     // Ajouter les questions
@@ -586,6 +598,7 @@
                         singleResponse: singleResponseCheckbox.checked,
                         reviewOptions: {
                             enabled: reviewEnabledCheckbox.checked,
+                            customMessagesEnabled: customMessagesEnabledCheckbox.checked,
                             acceptMessage: acceptMessageInput.value,
                             rejectMessage: rejectMessageInput.value,
                             acceptRoleId: acceptRoleSelect.value,
@@ -662,6 +675,11 @@
                 reviewOptionsContainer.classList.toggle('hidden', !reviewEnabledCheckbox.checked);
             });
             
+            customMessagesEnabledCheckbox.addEventListener('change', () => {
+                const defaultMessagesContainer = document.getElementById('defaultMessagesContainer');
+                defaultMessagesContainer.classList.toggle('hidden', customMessagesEnabledCheckbox.checked);
+            });
+            
             btnPreview.addEventListener('click', function() {
                 // Générer un aperçu du formulaire
                 alert('Fonctionnalité d\'aperçu à venir!');
@@ -669,262 +687,6 @@
             
             // Chargement initial
             loadFormData();
-        });
-
-        // Fonction pour sauvegarder le formulaire
-        async function saveForm() {
-            try {
-                // Vérifier que tous les champs obligatoires sont remplis
-                if (!formData.title || formData.title.trim() === '') {
-                    showError('Le titre du formulaire est obligatoire.');
-                    return;
-                }
-
-                if (!formData.embedText || formData.embedText.trim() === '') {
-                    showError('Le texte de l\'embed est obligatoire.');
-                    return;
-                }
-
-                if (!formData.buttonLabel || formData.buttonLabel.trim() === '') {
-                    showError('Le label du bouton est obligatoire.');
-                    return;
-                }
-
-                if (!formData.embedChannelId) {
-                    showError('Veuillez sélectionner un salon pour l\'embed.');
-                    return;
-                }
-
-                if (!formData.responseChannelId) {
-                    showError('Veuillez sélectionner un salon pour les réponses.');
-                    return;
-                }
-
-                if (!formData.questions || formData.questions.length === 0) {
-                    showError('Veuillez ajouter au moins une question.');
-                    return;
-                }
-
-                // Afficher le message de chargement
-                document.getElementById('saveSpinner').classList.remove('hidden');
-
-                // Construire l'URL en fonction de si c'est une création ou modification
-                const urlParts = window.location.pathname.split('/');
-                const isEdit = urlParts[1] === 'edit';
-                const guildId = urlParts[2];
-                const formId = isEdit ? urlParts[3] : null;
-                
-                const endpoint = formId 
-                    ? `/api/form/${guildId}/${formId}`
-                    : `/api/form/${guildId}`;
-
-                // Envoyer les données au serveur
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        form: formData
-                    })
-                });
-
-                const result = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(result.error || 'Une erreur est survenue lors de la sauvegarde');
-                }
-
-                // Rediriger vers la page de succès ou afficher un message
-                if (result.redirect) {
-                    window.location.href = result.redirect;
-                } else {
-                    // Message de succès
-                    showSuccess('Formulaire enregistré avec succès!');
-                    
-                    // Rediriger vers le dashboard après un court délai
-                    setTimeout(() => {
-                        window.location.href = '/dashboard';
-                    }, 1500);
-                }
-            } catch (error) {
-                console.error('Erreur:', error);
-                showError(`Erreur lors de la sauvegarde: ${error.message}`);
-                document.getElementById('saveSpinner').classList.add('hidden');
-            }
-        }
-
-        // Fonction pour afficher une erreur
-        function showError(message) {
-            const alertElement = document.getElementById('alertError');
-            const alertMessage = document.getElementById('alertErrorMessage');
-            
-            alertMessage.textContent = message;
-            alertElement.classList.remove('hidden');
-            
-            // Faire défiler jusqu'à l'alerte
-            alertElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            
-            // Masquer après un délai
-            setTimeout(() => {
-                alertElement.classList.add('hidden');
-            }, 5000);
-        }
-
-        // Fonction pour afficher un succès
-        function showSuccess(message) {
-            const alertElement = document.getElementById('alertSuccess');
-            const alertMessage = document.getElementById('alertSuccessMessage');
-            
-            alertMessage.textContent = message;
-            alertElement.classList.remove('hidden');
-            
-            // Faire défiler jusqu'à l'alerte
-            alertElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            
-            // Masquer après un délai
-            setTimeout(() => {
-                alertElement.classList.add('hidden');
-            }, 5000);
-        }
-
-        // Fonction pour retourner au tableau de bord
-        function backToDashboard() {
-            // Confirmer si des modifications ont été apportées
-            if (hasUnsavedChanges) {
-                if (confirm('Vous avez des modifications non enregistrées. Êtes-vous sûr de vouloir quitter cette page?')) {
-                    window.location.href = '/dashboard';
-                }
-            } else {
-                window.location.href = '/dashboard';
-            }
-        }
-
-        // Ajouter un gestionnaire d'événement pour le bouton de retour
-        document.addEventListener('DOMContentLoaded', function() {
-            // Ajouter le bouton de retour s'il n'existe pas déjà
-            const header = document.querySelector('header');
-            if (header && !document.getElementById('backButton')) {
-                const backButton = document.createElement('button');
-                backButton.id = 'backButton';
-                backButton.className = 'btn btn-secondary';
-                backButton.innerHTML = '← Retour au tableau de bord';
-                backButton.onclick = backToDashboard;
-                
-                // Insérer au début du header
-                header.insertBefore(backButton, header.firstChild);
-                
-                // Ajouter du style pour positionner correctement
-                const style = document.createElement('style');
-                style.textContent = `
-                    #backButton {
-                        margin-right: auto;
-                        margin-bottom: 1rem;
-                    }
-                    @media (min-width: 768px) {
-                        #backButton {
-                            margin-bottom: 0;
-                        }
-                        header {
-                            display: flex;
-                            align-items: center;
-                        }
-                    }
-                `;
-                document.head.appendChild(style);
-            }
-            
-            // Ajouter des zones d'alerte pour les erreurs et succès
-            const container = document.querySelector('.container');
-            if (container && !document.getElementById('alertError')) {
-                const alertError = document.createElement('div');
-                alertError.id = 'alertError';
-                alertError.className = 'alert alert-danger hidden';
-                alertError.innerHTML = `
-                    <strong>Erreur!</strong>
-                    <span id="alertErrorMessage"></span>
-                    <button type="button" class="close" onclick="this.parentElement.classList.add('hidden')">&times;</button>
-                `;
-                container.insertBefore(alertError, container.firstChild);
-            }
-            
-            if (container && !document.getElementById('alertSuccess')) {
-                const alertSuccess = document.createElement('div');
-                alertSuccess.id = 'alertSuccess';
-                alertSuccess.className = 'alert alert-success hidden';
-                alertSuccess.innerHTML = `
-                    <strong>Succès!</strong>
-                    <span id="alertSuccessMessage"></span>
-                    <button type="button" class="close" onclick="this.parentElement.classList.add('hidden')">&times;</button>
-                `;
-                container.insertBefore(alertSuccess, container.firstChild);
-            }
-            
-            // Ajouter du style pour les alertes
-            if (!document.getElementById('alertStyles')) {
-                const alertStyles = document.createElement('style');
-                alertStyles.id = 'alertStyles';
-                alertStyles.textContent = `
-                    .alert {
-                        padding: 1rem;
-                        margin-bottom: 1rem;
-                        border-radius: 5px;
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                    }
-                    .alert-danger {
-                        background-color: #FEEAE9;
-                        color: #DC3545;
-                        border: 1px solid #F5C6CB;
-                    }
-                    .alert-success {
-                        background-color: #D4EDDA;
-                        color: #28A745;
-                        border: 1px solid #C3E6CB;
-                    }
-                    .close {
-                        background: none;
-                        border: none;
-                        font-size: 1.5rem;
-                        cursor: pointer;
-                        padding: 0;
-                        margin-left: 1rem;
-                        font-weight: bold;
-                    }
-                    .hidden {
-                        display: none !important;
-                    }
-                `;
-                document.head.appendChild(alertStyles);
-            }
-        });
-
-        // Variable pour suivre les changements non enregistrés
-        let hasUnsavedChanges = false;
-
-        // Fonction pour marquer des changements non enregistrés
-        function markUnsavedChanges() {
-            hasUnsavedChanges = true;
-        }
-
-        // Ajouter des écouteurs d'événements pour suivre les changements
-        document.addEventListener('DOMContentLoaded', function() {
-            // Pour les changements dans le formulaire
-            document.querySelectorAll('input, select, textarea').forEach(element => {
-                element.addEventListener('change', markUnsavedChanges);
-            });
-            
-            // Pour les boutons qui manipulent les questions
-            document.getElementById('addQuestion').addEventListener('click', markUnsavedChanges);
-            
-            // Avertissement avant de quitter la page avec des changements non enregistrés
-            window.addEventListener('beforeunload', function(e) {
-                if (hasUnsavedChanges) {
-                    e.preventDefault();
-                    e.returnValue = '';
-                }
-            });
         });
     </script>
 </body>
