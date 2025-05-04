@@ -45,6 +45,8 @@ let forms = fs.existsSync(formsPath) ? fs.readJsonSync(formsPath) : {};
 client.forms = forms;
 client.formsPath = formsPath;
 client.formBuilders = new Map();
+// Stockage temporaire pour les réponses partielles aux formulaires multi-étapes
+client.tempResponses = new Map();
 
 client.commands = new Collection();
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
@@ -161,6 +163,67 @@ client.on('guildCreate', guild => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  // Gestionnaire spécifique pour les boutons de formulaires et étapes suivantes
+  if (interaction.isButton() && (interaction.customId.startsWith('fill_') || interaction.customId.startsWith('next_step_'))) {
+    console.log('Bouton de formulaire détecté:', interaction.customId);
+    let formId, currentStep = 0;
+
+    if (interaction.customId.startsWith('fill_')) {
+      formId = interaction.customId.split('_')[1];
+    } else if (interaction.customId.startsWith('next_step_')) {
+      [, , formId, currentStep] = interaction.customId.split('_');
+      currentStep = parseInt(currentStep);
+    }
+
+    const form = client.forms[interaction.guildId]?.[formId];
+    if (!form) return interaction.reply({ content: 'Formulaire introuvable.', ephemeral: true });
+
+    // Vérifier si l'utilisateur a déjà répondu (si singleResponse est activé)
+    if (form.singleResponse && form.respondents && form.respondents[interaction.user.id]) {
+      return interaction.reply({ 
+        content: 'Vous avez déjà répondu à ce formulaire. Vous ne pouvez pas répondre à nouveau.', 
+        ephemeral: true 
+      });
+    }
+
+    // Si le formulaire contient plus de 5 questions, on utilise la pagination
+    const totalQuestions = form.questions.length;
+    const questionsPerStep = 5; // Discord limite à 5 questions par modal
+    const totalSteps = Math.ceil(totalQuestions / questionsPerStep);
+    const startIdx = currentStep * questionsPerStep;
+    const endIdx = Math.min(startIdx + questionsPerStep, totalQuestions);
+    
+    // Créer un modal pour les questions de l'étape actuelle
+    const modal = new ModalBuilder()
+      .setCustomId(`form_step_${formId}_${currentStep}`)
+      .setTitle(`${form.title} (${currentStep + 1}/${totalSteps})`);
+    
+    // Ajouter les questions pour cette étape
+    for (let i = startIdx; i < endIdx; i++) {
+      const q = form.questions[i];
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId(`answer_${i}`)
+            .setLabel(q.text.length > 45 ? q.text.substring(0, 42) + '...' : q.text)
+            .setStyle(q.style === 'SHORT' ? TextInputStyle.Short : TextInputStyle.Paragraph)
+            .setRequired(true)
+        )
+      );
+    }
+    
+    try {
+      await interaction.showModal(modal);
+    } catch (error) {
+      console.error('Erreur lors de l\'affichage du modal:', error);
+      await interaction.reply({ 
+        content: 'Une erreur est survenue lors de l\'ouverture du formulaire. Veuillez réessayer.', 
+        ephemeral: true 
+      });
+    }
+    return;
+  }
+
   // Gestionnaire spécifique pour les boutons de suppression de réponse
   if (interaction.isButton() && interaction.customId.startsWith('delete_response_')) {
     console.log('Bouton de suppression détecté:', interaction.customId);
@@ -596,107 +659,249 @@ client.on(Events.InteractionCreate, async interaction => {
       }
     }
   } else if (interaction.isModalSubmit()) {
-    if (interaction.customId.startsWith('fill_modal_')) {
-      // Traitement spécial pour les réponses aux formulaires (pas de formBuilder)
-      const formId = interaction.customId.split('_')[2];
+    // Gestion des étapes du formulaire
+    if (interaction.customId.startsWith('form_step_')) {
+      const [, , formId, currentStep] = interaction.customId.split('_');
+      const currentStepNum = parseInt(currentStep);
       const form = client.forms[interaction.guildId]?.[formId];
+      
       if (!form) return interaction.reply({ content: 'Formulaire introuvable.', ephemeral: true });
       
-      // Vérifier si l'utilisateur a déjà répondu (si singleResponse est activé)
-      if (form.singleResponse && form.respondents && form.respondents[interaction.user.id]) {
-        // Log de tentative de réponse multiple
+      // Récupérer les réponses de cette étape
+      const questionsPerStep = 5;
+      const startIdx = currentStepNum * questionsPerStep;
+      const endIdx = Math.min(startIdx + questionsPerStep, form.questions.length);
+      const answers = {};
+      
+      for (let i = startIdx; i < endIdx; i++) {
+        answers[i] = interaction.fields.getTextInputValue(`answer_${i}`);
+      }
+      
+      // Stocker les réponses temporaires
+      const userId = interaction.user.id;
+      const userTempKey = `${userId}_${formId}`;
+      
+      if (!client.tempResponses.has(userTempKey)) {
+        client.tempResponses.set(userTempKey, {});
+      }
+      
+      // Fusionner les réponses existantes avec les nouvelles
+      const userResponses = client.tempResponses.get(userTempKey);
+      for (const [idx, answer] of Object.entries(answers)) {
+        userResponses[idx] = answer;
+      }
+      
+      // Vérifier s'il reste des questions
+      const totalQuestions = form.questions.length;
+      const totalSteps = Math.ceil(totalQuestions / questionsPerStep);
+      const isLastStep = currentStepNum >= totalSteps - 1;
+      
+      if (isLastStep) {
+        // C'est la dernière étape, traiter toutes les réponses
+        const allAnswers = [];
+        for (let i = 0; i < totalQuestions; i++) {
+          allAnswers.push(userResponses[i]);
+        }
+        
+        // Créer l'embed avec toutes les réponses
+        const resultEmbed = new EmbedBuilder()
+          .setTitle('Nouvelles réponses')
+          .setAuthor({ name: `${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
+          .addFields(form.questions.map((q, i) => ({ name: q.text, value: allAnswers[i] })));
+        
+        const targetChannel = await client.channels.fetch(form.responseChannelId);
+        
+        // Envoyer d'abord le message pour avoir l'ID
+        const sent = await targetChannel.send({ embeds: [resultEmbed] });
+        const messageId = sent.id;
+        
+        // Construction des boutons selon les options
+        const buttons = [];
+        
+        // Ajouter le bouton de suppression si c'est un formulaire à réponse unique
+        if (form.singleResponse) {
+          const deleteButton = new ButtonBuilder()
+            .setCustomId(`delete_response_${formId}_${messageId}`)
+            .setLabel('Supprimer la réponse')
+            .setStyle(ButtonStyle.Danger);
+          buttons.push(deleteButton);
+        }
+        
+        // Ajouter les boutons d'acceptation/refus si la révision est activée
+        if (form.reviewOptions && form.reviewOptions.enabled) {
+          const acceptButton = new ButtonBuilder()
+            .setCustomId(`accept_response_${formId}_${messageId}_${interaction.user.id}`)
+            .setLabel('Accepter')
+            .setStyle(ButtonStyle.Success);
+            
+          const rejectButton = new ButtonBuilder()
+            .setCustomId(`reject_response_${formId}_${messageId}_${interaction.user.id}`)
+            .setLabel('Refuser')
+            .setStyle(ButtonStyle.Danger);
+            
+          buttons.push(acceptButton, rejectButton);
+        }
+        
+        // Ajouter les boutons au message s'il y en a
+        if (buttons.length > 0) {
+          const row = new ActionRowBuilder().addComponents(buttons);
+          await sent.edit({ components: [row] });
+        }
+        
+        // Marquer l'utilisateur comme ayant répondu
+        if (form.singleResponse) {
+          form.respondents = form.respondents || {};
+          form.respondents[interaction.user.id] = {
+            responded: true,
+            messageId: messageId
+          };
+          fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
+        }
+        
+        // Supprimer les réponses temporaires
+        client.tempResponses.delete(userTempKey);
+
+        // Log de soumission de formulaire complet
         await logToWebhook(
-          "🚫 Tentative de réponse multiple", 
-          `**${interaction.user.tag}** a essayé de répondre à nouveau au formulaire "${form.title}" alors qu'il a déjà répondu.`,
+          "📝 Formulaire multi-étapes soumis", 
+          `**${interaction.user.tag}** a terminé le formulaire "${form.title}" (${totalQuestions} questions)`,
           [
             { name: "Utilisateur", value: `${interaction.user.tag} (ID: ${interaction.user.id})`, inline: true },
             { name: "Formulaire", value: form.title, inline: true },
-            { name: "Serveur", value: interaction.guild.name, inline: true }
+            { name: "Serveur", value: interaction.guild.name, inline: true },
+            { name: "Lien", value: `[Voir la réponse](https://discord.com/channels/${interaction.guild.id}/${form.responseChannelId}/${messageId})`, inline: false }
           ],
-          0xFEE75C // Couleur jaune
+          0x57F287 // Couleur verte
         );
         
-        return interaction.reply({ 
-          content: 'Vous avez déjà répondu à ce formulaire. Vous ne pouvez pas répondre à nouveau.', 
+        await interaction.reply({ content: 'Merci pour vos réponses ! Le formulaire est maintenant complété.', ephemeral: true });
+      } else {
+        // Il reste encore des étapes, afficher un message avec un bouton pour continuer
+        const nextStep = currentStepNum + 1;
+        
+        const embed = new EmbedBuilder()
+          .setTitle(`${form.title} - Étape ${currentStepNum + 1}/${totalSteps}`)
+          .setDescription("Le formulaire n'est pas encore terminé. Veuillez cliquer sur le bouton ci-dessous pour continuer.")
+          .setColor('#ED4245'); // Rouge pour attirer l'attention
+          
+        const nextButton = new ButtonBuilder()
+          .setCustomId(`next_step_${formId}_${nextStep}`)
+          .setLabel('Étape Suivante')
+          .setStyle(ButtonStyle.Primary);
+          
+        const row = new ActionRowBuilder().addComponents(nextButton);
+        
+        await interaction.reply({ 
+          embeds: [embed], 
+          components: [row], 
           ephemeral: true 
         });
       }
       
-      const answers = form.questions.map((_, i) => interaction.fields.getTextInputValue(`answer_${i}`));
-      const resultEmbed = new EmbedBuilder()
-        .setTitle('Nouvelles réponses')
-        .setAuthor({ name: `${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
-        .addFields(form.questions.map((q, i) => ({ name: q.text, value: answers[i] })));
-      
-      const targetChannel = await client.channels.fetch(form.responseChannelId);
-      
-      // Préparer les boutons selon les options du formulaire
-      let components = [];
-      let messageId;
-      
-      // Envoyer d'abord le message pour avoir l'ID
-      const sent = await targetChannel.send({ embeds: [resultEmbed] });
-      messageId = sent.id;
-      
-      // Construction des boutons selon les options
-      const buttons = [];
-      
-      // Ajouter le bouton de suppression si c'est un formulaire à réponse unique
-      if (form.singleResponse) {
-        const deleteButton = new ButtonBuilder()
-          .setCustomId(`delete_response_${formId}_${messageId}`)
-          .setLabel('Supprimer la réponse')
-          .setStyle(ButtonStyle.Danger);
-        buttons.push(deleteButton);
-      }
-      
-      // Ajouter les boutons d'acceptation/refus si la révision est activée
-      if (form.reviewOptions && form.reviewOptions.enabled) {
-        const acceptButton = new ButtonBuilder()
-          .setCustomId(`accept_response_${formId}_${messageId}_${interaction.user.id}`)
-          .setLabel('Accepter')
-          .setStyle(ButtonStyle.Success);
-          
-        const rejectButton = new ButtonBuilder()
-          .setCustomId(`reject_response_${formId}_${messageId}_${interaction.user.id}`)
-          .setLabel('Refuser')
-          .setStyle(ButtonStyle.Danger);
-          
-        buttons.push(acceptButton, rejectButton);
-      }
-      
-      // Ajouter les boutons au message s'il y en a
-      if (buttons.length > 0) {
-        const row = new ActionRowBuilder().addComponents(buttons);
-        await sent.edit({ components: [row] });
-      }
-      
-      // Marquer l'utilisateur comme ayant répondu
-      if (form.singleResponse) {
-        form.respondents = form.respondents || {};
-        form.respondents[interaction.user.id] = {
-          responded: true,
-          messageId: messageId
-        };
-        fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
-      }
-
-      // Log de soumission de formulaire
+      return;
+    }
+    
+    if (interaction.customId.startsWith('fill_modal_')) {
+    // Traitement spécial pour les réponses aux formulaires (pas de formBuilder)
+    const formId = interaction.customId.split('_')[2];
+    const form = client.forms[interaction.guildId]?.[formId];
+    if (!form) return interaction.reply({ content: 'Formulaire introuvable.', ephemeral: true });
+    
+    // Vérifier si l'utilisateur a déjà répondu (si singleResponse est activé)
+    if (form.singleResponse && form.respondents && form.respondents[interaction.user.id]) {
+      // Log de tentative de réponse multiple
       await logToWebhook(
-        "📝 Formulaire soumis", 
-        `**${interaction.user.tag}** a répondu au formulaire "${form.title}"`,
+        "🚫 Tentative de réponse multiple", 
+        `**${interaction.user.tag}** a essayé de répondre à nouveau au formulaire "${form.title}" alors qu'il a déjà répondu.`,
         [
           { name: "Utilisateur", value: `${interaction.user.tag} (ID: ${interaction.user.id})`, inline: true },
           { name: "Formulaire", value: form.title, inline: true },
-          { name: "Serveur", value: interaction.guild.name, inline: true },
-          { name: "Lien", value: `[Voir la réponse](https://discord.com/channels/${interaction.guild.id}/${form.responseChannelId}/${messageId})`, inline: false }
+          { name: "Serveur", value: interaction.guild.name, inline: true }
         ],
-        0x57F287 // Couleur verte
+        0xFEE75C // Couleur jaune
       );
       
-      await interaction.reply({ content: 'Merci pour vos réponses !', ephemeral: true });
-      return;
+      return interaction.reply({ 
+        content: 'Vous avez déjà répondu à ce formulaire. Vous ne pouvez pas répondre à nouveau.', 
+        ephemeral: true 
+      });
     }
+    
+    const answers = form.questions.map((_, i) => interaction.fields.getTextInputValue(`answer_${i}`));
+    const resultEmbed = new EmbedBuilder()
+      .setTitle('Nouvelles réponses')
+      .setAuthor({ name: `${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
+      .addFields(form.questions.map((q, i) => ({ name: q.text, value: answers[i] })));
+    
+    const targetChannel = await client.channels.fetch(form.responseChannelId);
+    
+    // Préparer les boutons selon les options du formulaire
+    let components = [];
+    let messageId;
+    
+    // Envoyer d'abord le message pour avoir l'ID
+    const sent = await targetChannel.send({ embeds: [resultEmbed] });
+    messageId = sent.id;
+    
+    // Construction des boutons selon les options
+    const buttons = [];
+    
+    // Ajouter le bouton de suppression si c'est un formulaire à réponse unique
+    if (form.singleResponse) {
+      const deleteButton = new ButtonBuilder()
+        .setCustomId(`delete_response_${formId}_${messageId}`)
+        .setLabel('Supprimer la réponse')
+        .setStyle(ButtonStyle.Danger);
+      buttons.push(deleteButton);
+    }
+    
+    // Ajouter les boutons d'acceptation/refus si la révision est activée
+    if (form.reviewOptions && form.reviewOptions.enabled) {
+      const acceptButton = new ButtonBuilder()
+        .setCustomId(`accept_response_${formId}_${messageId}_${interaction.user.id}`)
+        .setLabel('Accepter')
+        .setStyle(ButtonStyle.Success);
+        
+      const rejectButton = new ButtonBuilder()
+        .setCustomId(`reject_response_${formId}_${messageId}_${interaction.user.id}`)
+        .setLabel('Refuser')
+        .setStyle(ButtonStyle.Danger);
+        
+      buttons.push(acceptButton, rejectButton);
+    }
+    
+    // Ajouter les boutons au message s'il y en a
+    if (buttons.length > 0) {
+      const row = new ActionRowBuilder().addComponents(buttons);
+      await sent.edit({ components: [row] });
+    }
+    
+    // Marquer l'utilisateur comme ayant répondu
+    if (form.singleResponse) {
+      form.respondents = form.respondents || {};
+      form.respondents[interaction.user.id] = {
+        responded: true,
+        messageId: messageId
+      };
+      fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
+    }
+
+    // Log de soumission de formulaire
+    await logToWebhook(
+      "📝 Formulaire soumis", 
+      `**${interaction.user.tag}** a répondu au formulaire "${form.title}"`,
+      [
+        { name: "Utilisateur", value: `${interaction.user.tag} (ID: ${interaction.user.id})`, inline: true },
+        { name: "Formulaire", value: form.title, inline: true },
+        { name: "Serveur", value: interaction.guild.name, inline: true },
+        { name: "Lien", value: `[Voir la réponse](https://discord.com/channels/${interaction.guild.id}/${form.responseChannelId}/${messageId})`, inline: false }
+      ],
+      0x57F287 // Couleur verte
+    );
+    
+    await interaction.reply({ content: 'Merci pour vos réponses !', ephemeral: true });
+    return;
+  }
     
     // Pour les autres modals (partie du wizard)
     const builder = client.formBuilders.get(interaction.user.id);
