@@ -208,6 +208,7 @@ client.on(Events.InteractionCreate, async interaction => {
             .setLabel(q.text.length > 45 ? q.text.substring(0, 42) + '...' : q.text)
             .setStyle(q.style === 'SHORT' ? TextInputStyle.Short : TextInputStyle.Paragraph)
             .setRequired(true)
+            .setMaxLength(q.style === 'PARAGRAPH' ? 1024 : 256) // Limite de 1024 caractères pour réponses longues
         )
       );
     }
@@ -621,6 +622,7 @@ client.on(Events.InteractionCreate, async interaction => {
             .setLabel(q.text.length > 45 ? q.text.substring(0, 42) + '...' : q.text)
             .setStyle(q.style === 'SHORT' ? TextInputStyle.Short : TextInputStyle.Paragraph)
             .setRequired(true)
+            .setMaxLength(q.style === 'PARAGRAPH' ? 1024 : 256) // Limite de 1024 caractères pour réponses longues
         )
       ));
       
@@ -799,6 +801,7 @@ client.on(Events.InteractionCreate, async interaction => {
             .setLabel(q.text.length > 45 ? q.text.substring(0, 42) + '...' : q.text)
             .setStyle(q.style === 'SHORT' ? TextInputStyle.Short : TextInputStyle.Paragraph)
             .setRequired(true)
+            .setMaxLength(q.style === 'PARAGRAPH' ? 1024 : 256) // Limite de 1024 caractères pour réponses longues
         )
       ));
       
