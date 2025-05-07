@@ -118,14 +118,14 @@ async function updateWizard(builder) {
 }
 
 client.once(Events.ClientReady, async () => {
-  console.log(`Logged in as ${client.user.tag}`);
+  console.log(`Logged in as ${client.user.username}`);
   // register commands for all current guilds
   client.guilds.cache.forEach(g => registerGuildCommands(g.id));
   
   // Log le démarrage du bot
   await logToWebhook(
     "🟢 Bot démarré", 
-    `Le bot **${client.user.tag}** est maintenant en ligne.`,
+    `Le bot **${client.user.username}** est maintenant en ligne.`,
     [
       { name: "Date", value: new Date().toLocaleString(), inline: true },
       { name: "Serveurs", value: client.guilds.cache.size.toString(), inline: true }
@@ -364,9 +364,9 @@ client.on(Events.InteractionCreate, async interaction => {
         // Log de l'action d'acceptation/refus
         await logToWebhook(
           isAccept ? "✅ Réponse acceptée" : "❌ Réponse refusée", 
-          `**${interaction.user.tag}** a ${isAccept ? 'accepté' : 'refusé'} la réponse de **${userId ? `<@${userId}>` : 'utilisateur inconnu'}** au formulaire "${form.title}"`,
+          `**${interaction.user.username}** a ${isAccept ? 'accepté' : 'refusé'} la réponse de **${userId ? `<@${userId}>` : 'utilisateur inconnu'}** au formulaire "${form.title}"`,
           [
-            { name: "Modérateur", value: `${interaction.user.tag} (ID: ${interaction.user.id})`, inline: true },
+            { name: "Modérateur", value: `${interaction.user.username} (ID: ${interaction.user.id})`, inline: true },
             { name: "Action", value: isAccept ? "Acceptation" : "Refus", inline: true },
             { name: "Formulaire", value: form.title, inline: true },
             { name: "Serveur", value: interaction.guild.name, inline: false },
@@ -492,9 +492,9 @@ client.on(Events.InteractionCreate, async interaction => {
         // Log de l'action d'acceptation/refus
         await logToWebhook(
           isAccept ? "✅ Réponse acceptée (Message personnalisé)" : "❌ Réponse refusée (Message personnalisé)", 
-          `**${interaction.user.tag}** a ${isAccept ? 'accepté' : 'refusé'} la réponse de **${userId ? `<@${userId}>` : 'utilisateur inconnu'}** au formulaire "${form.title}" avec un message personnalisé`,
+          `**${interaction.user.username}** a ${isAccept ? 'accepté' : 'refusé'} la réponse de **${userId ? `<@${userId}>` : 'utilisateur inconnu'}** au formulaire "${form.title}" avec un message personnalisé`,
           [
-            { name: "Modérateur", value: `${interaction.user.tag} (ID: ${interaction.user.id})`, inline: true },
+            { name: "Modérateur", value: `${interaction.user.username} (ID: ${interaction.user.id})`, inline: true },
             { name: "Action", value: isAccept ? "Acceptation" : "Refus", inline: true },
             { name: "Formulaire", value: form.title, inline: true },
             { name: "Message personnalisé", value: messageToSend.substring(0, 1000), inline: false },
@@ -863,7 +863,7 @@ client.on(Events.InteractionCreate, async interaction => {
         // Créer l'embed avec toutes les réponses
         const resultEmbed = new EmbedBuilder()
           .setTitle('Nouvelles réponses')
-          .setAuthor({ name: `${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
+          .setAuthor({ name: `${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL() })
           .addFields(form.questions.map((q, i) => ({ name: q.text, value: allAnswers[i] })));
         
         const targetChannel = await client.channels.fetch(form.responseChannelId);
@@ -921,9 +921,9 @@ client.on(Events.InteractionCreate, async interaction => {
         // Log de soumission de formulaire complet
         await logToWebhook(
           "📝 Formulaire multi-étapes soumis", 
-          `**${interaction.user.tag}** a terminé le formulaire "${form.title}" (${totalQuestions} questions)`,
+          `**${interaction.user.username}** a terminé le formulaire "${form.title}" (${totalQuestions} questions)`,
           [
-            { name: "Utilisateur", value: `${interaction.user.tag} (ID: ${interaction.user.id})`, inline: true },
+            { name: "Utilisateur", value: `${interaction.user.username} (ID: ${interaction.user.id})`, inline: true },
             { name: "Formulaire", value: form.title, inline: true },
             { name: "Serveur", value: interaction.guild.name, inline: true },
             { name: "Lien", value: `[Voir la réponse](https://discord.com/channels/${interaction.guild.id}/${form.responseChannelId}/${messageId})`, inline: false }
@@ -969,9 +969,9 @@ client.on(Events.InteractionCreate, async interaction => {
       // Log de tentative de réponse multiple
       await logToWebhook(
         "🚫 Tentative de réponse multiple", 
-        `**${interaction.user.tag}** a essayé de répondre à nouveau au formulaire "${form.title}" alors qu'il a déjà répondu.`,
+        `**${interaction.user.username}** a essayé de répondre à nouveau au formulaire "${form.title}" alors qu'il a déjà répondu.`,
         [
-          { name: "Utilisateur", value: `${interaction.user.tag} (ID: ${interaction.user.id})`, inline: true },
+          { name: "Utilisateur", value: `${interaction.user.username} (ID: ${interaction.user.id})`, inline: true },
           { name: "Formulaire", value: form.title, inline: true },
           { name: "Serveur", value: interaction.guild.name, inline: true }
         ],
@@ -987,7 +987,7 @@ client.on(Events.InteractionCreate, async interaction => {
     const answers = form.questions.map((_, i) => interaction.fields.getTextInputValue(`answer_${i}`));
     const resultEmbed = new EmbedBuilder()
       .setTitle('Nouvelles réponses')
-      .setAuthor({ name: `${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
+      .setAuthor({ name: `${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL() })
       .addFields(form.questions.map((q, i) => ({ name: q.text, value: answers[i] })));
     
     const targetChannel = await client.channels.fetch(form.responseChannelId);
@@ -1046,9 +1046,9 @@ client.on(Events.InteractionCreate, async interaction => {
     // Log de soumission de formulaire
     await logToWebhook(
       "📝 Formulaire soumis", 
-      `**${interaction.user.tag}** a répondu au formulaire "${form.title}"`,
+      `**${interaction.user.username}** a répondu au formulaire "${form.title}"`,
       [
-        { name: "Utilisateur", value: `${interaction.user.tag} (ID: ${interaction.user.id})`, inline: true },
+        { name: "Utilisateur", value: `${interaction.user.username} (ID: ${interaction.user.id})`, inline: true },
         { name: "Formulaire", value: form.title, inline: true },
         { name: "Serveur", value: interaction.guild.name, inline: true },
         { name: "Lien", value: `[Voir la réponse](https://discord.com/channels/${interaction.guild.id}/${form.responseChannelId}/${messageId})`, inline: false }
