@@ -1694,7 +1694,8 @@ app.get('/api/forms/:guildId', isAuthenticated, hasGuildPermission, (req, res) =
     singleResponse: form.singleResponse,
     reviewOptions: form.reviewOptions,
     embedMessageId: form.embedMessageId,
-    respondents: form.respondents || {}
+    respondents: form.respondents || {},
+    disabled: form.disabled || false  // ajout du statut
   }));
   
   res.json(forms);
@@ -1754,6 +1755,76 @@ app.delete('/api/forms/:guildId/:formId', isAuthenticated, hasGuildPermission, a
   } catch (error) {
     console.error('Erreur lors de la suppression du formulaire:', error);
     res.status(500).json({ error: 'Erreur lors de la suppression du formulaire' });
+  }
+});
+
+// Route pour activer/désactiver un formulaire
+app.post('/api/forms/:guildId/:formId/toggle', isAuthenticated, hasGuildPermission, async (req, res) => {
+  const { guildId, formId } = req.params;
+  const { status } = req.body;
+  
+  try {
+    // Vérifier si le formulaire existe
+    if (!client.forms[guildId] || !client.forms[guildId][formId]) {
+      return res.status(404).json({ error: 'Formulaire introuvable' });
+    }
+    
+    // Récupérer les informations du formulaire pour le log
+    const form = client.forms[guildId][formId];
+    const guild = client.guilds.cache.get(guildId);
+    
+    // Mettre à jour le statut du formulaire
+    const isDisabled = status === 'disabled';
+    client.forms[guildId][formId].disabled = isDisabled;
+    
+    // Mettre à jour l'embed Discord si possible
+    if (form.embedMessageId && form.embedChannelId) {
+      try {
+        const channel = await client.channels.fetch(form.embedChannelId);
+        const message = await channel.messages.fetch(form.embedMessageId);
+        
+        // Récupérer l'embed existant
+        const embed = message.embeds[0];
+        
+        // Créer un nouveau bouton avec le statut correct
+        const btn = new ButtonBuilder()
+          .setCustomId(`fill_${formId}`)
+          .setLabel(form.buttonLabel)
+          .setStyle(ButtonStyle.Primary)
+          .setDisabled(isDisabled);
+        
+        // Mettre à jour le message avec le nouveau bouton
+        await message.edit({
+          embeds: [embed],
+          components: [new ActionRowBuilder().addComponents(btn)]
+        });
+        
+        console.log(`Message de formulaire mis à jour avec statut ${isDisabled ? 'désactivé' : 'activé'}: ${form.embedMessageId}`);
+      } catch (error) {
+        console.error(`Impossible de mettre à jour le message Discord: ${error.message}`);
+        // On continue même si le message ne peut pas être mis à jour
+      }
+    }
+    
+    // Sauvegarder les modifications
+    fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
+    
+    // Log de changement de statut du formulaire
+    await logToWebhook(
+      isDisabled ? "🔴 Formulaire désactivé" : "🟢 Formulaire activé", 
+      `**${req.session.user.username}** a ${isDisabled ? 'désactivé' : 'activé'} le formulaire "${form.title}" du serveur **${guild?.name || guildId}**`,
+      [
+        { name: "Titre", value: form.title, inline: true },
+        { name: "Serveur", value: guild?.name || guildId, inline: true },
+        { name: "Utilisateur", value: `${req.session.user.username} (ID: ${req.session.user.id})`, inline: false }
+      ],
+      isDisabled ? 0xFEE75C : 0x57F287 // Jaune si désactivé, vert si activé
+    );
+    
+    res.json({ success: true, status: status });
+  } catch (error) {
+    console.error('Erreur lors de la modification du statut du formulaire:', error);
+    res.status(500).json({ error: 'Erreur lors de la modification du statut du formulaire' });
   }
 });
 

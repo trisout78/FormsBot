@@ -141,6 +141,13 @@
         .btn-danger:hover {
             background-color: #D63638;
         }
+        .btn-success {
+            background-color: #45C46A;
+            color: white;
+        }
+        .btn-success:hover {
+            background-color: #45C46A;
+        }
         .empty-state {
             text-align: center;
             padding: 3rem 0;
@@ -519,6 +526,7 @@
                             </div>
                             <div class="form-actions">
                                 <a href="/edit/${currentGuildId}/${form.id}" class="btn btn-primary">Modifier</a>
+                                <button class="btn ${form.disabled ? 'btn-success' : 'btn-secondary'} toggle-form" data-id="${form.id}" data-status="${form.disabled ? 'disabled' : 'enabled'}">${form.disabled ? '<span style="color: white;">Activer le formulaire</span>' : 'Désactiver le formulaire'}</button>
                                 <button class="btn btn-danger delete-form" data-id="${form.id}">Supprimer</button>
                             </div>
                         </div>
@@ -532,6 +540,14 @@
                 deleteButtons.forEach(button => {
                     button.addEventListener('click', function() {
                         showDeleteConfirmation(this.dataset.id);
+                    });
+                });
+                
+                // Ajouter des écouteurs d'événements aux boutons d'activation/désactivation
+                const toggleButtons = document.querySelectorAll('.toggle-form');
+                toggleButtons.forEach(button => {
+                    button.addEventListener('click', function() {
+                        toggleFormStatus(this.dataset.id, this.dataset.status);
                     });
                 });
             }
@@ -559,6 +575,37 @@
                 } catch (error) {
                     console.error('Erreur:', error);
                     alert(`Erreur lors de la suppression du formulaire: ${error.message}`);
+                }
+            }
+
+            // Fonction pour activer/désactiver un formulaire
+            async function toggleFormStatus(formId, currentStatus) {
+                try {
+                    // Récupérer le bouton et ajouter l'indicateur de chargement
+                    const button = document.querySelector(`.toggle-form[data-id="${formId}"]`);
+                    const originalText = button.innerHTML;
+                    button.disabled = true;
+                    button.innerHTML = '<span class="loading"></span> Traitement...';
+                    
+                    const newStatus = currentStatus === 'enabled' ? 'disabled' : 'enabled';
+                    const response = await fetch(`/api/forms/${currentGuildId}/${formId}/toggle`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ status: newStatus })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Erreur lors de la modification du statut du formulaire');
+                    }
+                    
+                    // Actualiser la liste des formulaires
+                    const guildName = serverNameHeading.textContent.replace('Formulaires de ', '');
+                    showFormsForGuild(currentGuildId, guildName);
+                } catch (error) {
+                    console.error('Erreur:', error);
+                    alert(`Erreur lors de la modification du statut du formulaire: ${error.message}`);
                 }
             }
 
