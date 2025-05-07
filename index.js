@@ -118,14 +118,14 @@ async function updateWizard(builder) {
 }
 
 client.once(Events.ClientReady, async () => {
-  console.log(`Logged in as ${client.user.username}`);
+  console.log(`Logged in as ${client.user.tag}`);
   // register commands for all current guilds
   client.guilds.cache.forEach(g => registerGuildCommands(g.id));
   
   // Log le démarrage du bot
   await logToWebhook(
     "🟢 Bot démarré", 
-    `Le bot **${client.user.username}** est maintenant en ligne.`,
+    `Le bot **${client.user.tag}** est maintenant en ligne.`,
     [
       { name: "Date", value: new Date().toLocaleString(), inline: true },
       { name: "Serveurs", value: client.guilds.cache.size.toString(), inline: true }
@@ -920,7 +920,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
         // Log de soumission de formulaire complet
         await logToWebhook(
-          "📝 Formulaire multi-étapes soumis", 
+          "📝 Formulaire soumis", 
           `**${interaction.user.username}** a terminé le formulaire "${form.title}" (${totalQuestions} questions)`,
           [
             { name: "Utilisateur", value: `${interaction.user.username} (ID: ${interaction.user.id})`, inline: true },
