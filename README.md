@@ -26,7 +26,7 @@ MyForm Bot is a French Discord bot designed to help you create and manage intera
    [Invite MyForm Bot](https://discord.com/oauth2/authorize?client_id=1367532884684050583&permissions=8&integration_type=0&scope=bot)
 
 2. Log in to the web interface to manage your forms:
-   [MyForm Dashboard](http://your-dashboard-url.com)
+   [MyForm Dashboard](https://myform.trisout.fr)
 
 ## Requirements
 
@@ -35,8 +35,8 @@ MyForm Bot is a French Discord bot designed to help you create and manage intera
 
 ## Support
 
-If you encounter any issues or have questions, feel free to contact the developer or visit the support server.
+If you encounter any issues or have questions, feel free to contact the developer.
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+This project is licensed under the GNU GENERAL PUBLIC LICENSE V3.0 License. See the LICENSE file for details.
