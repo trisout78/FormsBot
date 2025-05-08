@@ -33,6 +33,45 @@ MyForm Bot is a French Discord bot designed to help you create and manage intera
 - A Discord server where you have administrative permissions.
 - A web browser to access the management dashboard.
 
+## Self-Hosting
+
+If you prefer to self-host MyForm Bot, follow these steps:
+
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/your-repo/forms-bot.git
+   cd forms-bot
+   ```
+
+2. **Install Dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Set Up Configuration**:
+   Edit the `config.json` file in the root directory and configure the following fields:
+   ```json
+   {
+     "token": "your-discord-bot-token",
+     "clientId": "your-discord-client-id",
+     "clientSecret": "your-discord-client-secret",
+     "webserver": {
+       "port": 3000,
+       "baseUrl": "http://localhost:3000"
+     },
+     "secretKey": "your-random-secret-key",
+     "webhookUrl": "your-webhook-url"
+   }
+   ```
+
+4. **Start the Bot**:
+   ```bash
+   npm start
+   ```
+
+5. **Access the Web Interface**:
+   Open your browser and navigate to `http://localhost:3000` to manage your forms.
+
 ## Support
 
 If you encounter any issues or have questions, feel free to contact the developer.
