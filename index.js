@@ -13,11 +13,15 @@ const session = require('express-session');
 const axios = require('axios');
 const url = require('url');
 
-// Fonction utilitaire pour envoyer des logs au webhook Discord
-async function logToWebhook(title, description, fields = [], color = 0x3498db) {
+// Fonction utilitaire pour envoyer des logs au webhook Discord et dans la console
+async function logToWebhookAndConsole(title, description, fields = [], color = 0x3498db) {
+  // Format console log
+  const time = new Date().toLocaleString();
+  const logMsg = `\n[${time}] ${title}\n${description}\n` + (fields.length ? fields.map(f => `- ${f.name}: ${f.value}`).join('\n') : '');
+  console.log(logMsg);
+  // Webhook log
   try {
     if (!config.webhookUrl) return;
-    
     const embed = {
       title: title,
       description: description,
@@ -25,12 +29,11 @@ async function logToWebhook(title, description, fields = [], color = 0x3498db) {
       fields: fields,
       timestamp: new Date().toISOString()
     };
-    
-    await axios.post(config.webhookUrl, {
-      embeds: [embed]
-    });
+    await axios.post(config.webhookUrl, { embeds: [embed] });
   } catch (error) {
-    console.error('Erreur lors de l\'envoi du log au webhook:', error);
+    // Log l'erreur dans la console proprement
+    const errMsg = `[${new Date().toLocaleString()}] Erreur lors de l'envoi du log au webhook: ${error.message}`;
+    console.log(errMsg);
   }
 }
 
@@ -52,7 +55,7 @@ const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('
 for (const file of commandFiles) {
   const command = require(`./commands/${file}`);
   if (!command || !command.data || !command.data.name) {
-    console.warn(`Skipping invalid command file: ${file}`);
+    console.log(`Skipping invalid command file: ${file}`);
     continue;
   }
   client.commands.set(command.data.name, command);
@@ -62,7 +65,7 @@ for (const file of commandFiles) {
 async function registerGuildCommands(guildId) {
   const commandsData = [...client.commands.values()].map(cmd => cmd.data.toJSON());
   await rest.put(Routes.applicationGuildCommands(config.clientId, guildId), { body: commandsData });
-  console.log(`Registered commands for guild ${guildId}`);
+  console.log(`Commande enregistrée pour le serveur ${guildId}`);
 }
 
 // helper to build wizard embed and components
@@ -105,7 +108,7 @@ async function updateWizard(builder) {
     console.log(`Wizard mis à jour pour ${builder.userId}, message: ${builder.messageId}`);
     return true;
   } catch (error) {
-    console.error('Erreur lors de la mise à jour du wizard:', error.message);
+    console.log('Erreur lors de la mise à jour du wizard:', error.message);
     // Si le message n'est pas trouvé, il a peut-être été supprimé
     if (error.code === 10008) {
       // Dans ce cas, on supprime simplement le builder pour éviter des erreurs répétées
@@ -117,12 +120,11 @@ async function updateWizard(builder) {
 }
 
 client.once(Events.ClientReady, async () => {
-  console.log(`Logged in as ${client.user.tag}`);
-  // register commands for all current guilds
+  console.log(`Connecté en tant que ${client.user.tag}`);
   client.guilds.cache.forEach(g => registerGuildCommands(g.id));
   
   // Log le démarrage du bot
-  await logToWebhook(
+  await logToWebhookAndConsole(
     "🟢 Bot démarré", 
     `Le bot **${client.user.tag}** est maintenant en ligne.`,
     [
@@ -136,7 +138,7 @@ client.once(Events.ClientReady, async () => {
 // Log quand le bot s'arrête
 process.on('SIGINT', async () => {
   console.log('Bot arrêté avec SIGINT');
-  await logToWebhook(
+  await logToWebhookAndConsole(
     "🔴 Bot arrêté", 
     "Le bot a été arrêté manuellement.",
     [{ name: "Date", value: new Date().toLocaleString(), inline: true }],
@@ -147,7 +149,7 @@ process.on('SIGINT', async () => {
 
 process.on('SIGTERM', async () => {
   console.log('Bot arrêté avec SIGTERM');
-  await logToWebhook(
+  await logToWebhookAndConsole(
     "🔴 Bot arrêté", 
     "Le bot a été arrêté par le système.",
     [{ name: "Date", value: new Date().toLocaleString(), inline: true }],
@@ -164,7 +166,6 @@ client.on('guildCreate', guild => {
 client.on(Events.InteractionCreate, async interaction => {
   // Gestionnaire spécifique pour les boutons de formulaires et étapes suivantes
   if (interaction.isButton() && (interaction.customId.startsWith('fill_') || interaction.customId.startsWith('next_step_'))) {
-    console.log('Bouton de formulaire détecté:', interaction.customId);
     let formId, currentStep = 0;
 
     if (interaction.customId.startsWith('fill_')) {
@@ -215,7 +216,7 @@ client.on(Events.InteractionCreate, async interaction => {
     try {
       await interaction.showModal(modal);
     } catch (error) {
-      console.error('Erreur lors de l\'affichage du modal:', error);
+      console.log('Erreur lors de l\'affichage du modal:', error);
       await interaction.reply({ 
         content: 'Une erreur est survenue lors de l\'ouverture du formulaire. Veuillez réessayer.', 
         ephemeral: true 
@@ -270,18 +271,18 @@ client.on(Events.InteractionCreate, async interaction => {
 
         await interaction.editReply({ content: 'Réponse supprimée avec succès.', ephemeral: true });
       } catch (error) {
-        console.error('Erreur lors de la suppression de la réponse:', error);
+        console.log('Erreur lors de la suppression de la réponse:', error);
         await interaction.editReply({ content: `Erreur lors de la suppression de la réponse: ${error.message}`, ephemeral: true });
       }
     } catch (error) {
-      console.error('Erreur générale lors du traitement de la suppression:', error);
+      console.log('Erreur générale lors du traitement de la suppression:', error);
       // En cas d'erreur avec deferReply, essayer une méthode alternative
       try {
         if (!interaction.replied) {
           await interaction.reply({ content: 'Une erreur est survenue lors de la suppression.', ephemeral: true });
         }
       } catch (e) {
-        console.error('Impossible de répondre à l\'interaction:', e);
+        console.log('Impossible de répondre à l\'interaction:', e);
       }
     }
     // Arrêter ici pour ne pas exécuter le reste du code
@@ -361,7 +362,7 @@ client.on(Events.InteractionCreate, async interaction => {
         await message.edit({ embeds: [updatedEmbed], components: components });
         
         // Log de l'action d'acceptation/refus
-        await logToWebhook(
+        await logToWebhookAndConsole(
           isAccept ? "✅ Réponse acceptée" : "❌ Réponse refusée", 
           `**${interaction.user.username}** a ${isAccept ? 'accepté' : 'refusé'} la réponse de **${userId ? `<@${userId}>` : 'utilisateur inconnu'}** au formulaire "${form.title}"`,
           [
@@ -390,7 +391,7 @@ client.on(Events.InteractionCreate, async interaction => {
               const roleId = isAccept ? form.reviewOptions.acceptRoleId : form.reviewOptions.rejectRoleId;
               if (roleId) {
                 await member.roles.add(roleId).catch(err => {
-                  console.error(`Erreur lors de l'ajout du rôle ${roleId} à ${userId}:`, err);
+                  console.log(`Erreur lors de l'ajout du rôle ${roleId} à ${userId}:`, err);
                 });
               }
             }
@@ -406,7 +407,7 @@ client.on(Events.InteractionCreate, async interaction => {
             }
           }
         } catch (err) {
-          console.error('Erreur lors de la notification de l\'utilisateur:', err);
+          console.log('Erreur lors de la notification de l\'utilisateur:', err);
         }
         
         await interaction.editReply({ 
@@ -414,20 +415,20 @@ client.on(Events.InteractionCreate, async interaction => {
           ephemeral: true 
         });
       } catch (error) {
-        console.error('Erreur lors du traitement de la réponse:', error);
+        console.log('Erreur lors du traitement de la réponse:', error);
         await interaction.editReply({ 
           content: `Erreur lors du traitement de la réponse: ${error.message}`, 
           ephemeral: true 
         });
       }
     } catch (error) {
-      console.error('Erreur générale lors du traitement de la révision:', error);
+      console.log('Erreur générale lors du traitement de la révision:', error);
       try {
         if (!interaction.replied) {
           await interaction.reply({ content: 'Une erreur est survenue.', ephemeral: true });
         }
       } catch (e) {
-        console.error('Impossible de répondre à l\'interaction:', e);
+        console.log('Impossible de répondre à l\'interaction:', e);
       }
     }
     return;
@@ -489,7 +490,7 @@ client.on(Events.InteractionCreate, async interaction => {
         await message.edit({ embeds: [updatedEmbed], components: components });
         
         // Log de l'action d'acceptation/refus
-        await logToWebhook(
+        await logToWebhookAndConsole(
           isAccept ? "✅ Réponse acceptée (Message personnalisé)" : "❌ Réponse refusée (Message personnalisé)", 
           `**${interaction.user.username}** a ${isAccept ? 'accepté' : 'refusé'} la réponse de **${userId ? `<@${userId}>` : 'utilisateur inconnu'}** au formulaire "${form.title}" avec un message personnalisé`,
           [
@@ -515,7 +516,7 @@ client.on(Events.InteractionCreate, async interaction => {
               const roleId = isAccept ? form.reviewOptions.acceptRoleId : form.reviewOptions.rejectRoleId;
               if (roleId) {
                 await member.roles.add(roleId).catch(err => {
-                  console.error(`Erreur lors de l'ajout du rôle ${roleId} à ${userId}:`, err);
+                  console.log(`Erreur lors de l'ajout du rôle ${roleId} à ${userId}:`, err);
                 });
               }
             }
@@ -531,7 +532,7 @@ client.on(Events.InteractionCreate, async interaction => {
             }
           }
         } catch (err) {
-          console.error('Erreur lors de la notification de l\'utilisateur:', err);
+          console.log('Erreur lors de la notification de l\'utilisateur:', err);
           await interaction.editReply({ 
             content: `La réponse a été ${isAccept ? 'acceptée' : 'refusée'} avec succès, mais il y a eu une erreur lors de l'envoi du message à l'utilisateur.`, 
             ephemeral: true 
@@ -544,14 +545,14 @@ client.on(Events.InteractionCreate, async interaction => {
           ephemeral: true 
         });
       } catch (error) {
-        console.error('Erreur lors du traitement de la réponse:', error);
+        console.log('Erreur lors du traitement de la réponse:', error);
         await interaction.editReply({ 
           content: `Erreur lors du traitement de la réponse: ${error.message}`, 
           ephemeral: true 
         });
       }
     } catch (error) {
-      console.error('Erreur générale lors du traitement du message personnalisé:', error);
+      console.log('Erreur générale lors du traitement du message personnalisé:', error);
       try {
         if (!interaction.replied && !interaction.deferred) {
           await interaction.reply({ content: 'Une erreur est survenue.', ephemeral: true });
@@ -559,7 +560,7 @@ client.on(Events.InteractionCreate, async interaction => {
           await interaction.editReply({ content: 'Une erreur est survenue.', ephemeral: true });
         }
       } catch (e) {
-        console.error('Impossible de répondre à l\'interaction:', e);
+        console.log('Impossible de répondre à l\'interaction:', e);
       }
     }
     return;
@@ -572,7 +573,7 @@ client.on(Events.InteractionCreate, async interaction => {
     try {
       await command.execute(interaction, client);
     } catch (error) {
-      console.error(error);
+      console.log(error);
       const reply = { content: 'There was an error executing that command.', ephemeral: true };
       interaction.replied || interaction.deferred ? interaction.followUp(reply) : interaction.reply(reply);
     }
@@ -628,7 +629,7 @@ client.on(Events.InteractionCreate, async interaction => {
       try {
         await interaction.showModal(modal);
       } catch (error) {
-        console.error('Erreur lors de l\'affichage du modal:', error);
+        console.log('Erreur lors de l\'affichage du modal:', error);
         await interaction.reply({ 
           content: 'Une erreur est survenue lors de l\'ouverture du formulaire. Veuillez réessayer.', 
           ephemeral: true 
@@ -807,7 +808,7 @@ client.on(Events.InteractionCreate, async interaction => {
       try {
         await interaction.showModal(modal);
       } catch (error) {
-        console.error('Erreur lors de l\'affichage du modal:', error);
+        console.log('Erreur lors de l\'affichage du modal:', error);
         await interaction.reply({ 
           content: 'Une erreur est survenue lors de l\'ouverture du formulaire. Veuillez réessayer.', 
           ephemeral: true 
@@ -918,7 +919,7 @@ client.on(Events.InteractionCreate, async interaction => {
         client.tempResponses.delete(userTempKey);
 
         // Log de soumission de formulaire complet
-        await logToWebhook(
+        await logToWebhookAndConsole(
           "📝 Formulaire soumis", 
           `**${interaction.user.username}** a terminé le formulaire "${form.title}" (${totalQuestions} questions)`,
           [
@@ -966,7 +967,7 @@ client.on(Events.InteractionCreate, async interaction => {
     // Vérifier si l'utilisateur a déjà répondu (si singleResponse est activé)
     if (form.singleResponse && form.respondents && form.respondents[interaction.user.id]) {
       // Log de tentative de réponse multiple
-      await logToWebhook(
+      await logToWebhookAndConsole(
         "🚫 Tentative de réponse multiple", 
         `**${interaction.user.username}** a essayé de répondre à nouveau au formulaire "${form.title}" alors qu'il a déjà répondu.`,
         [
@@ -1043,7 +1044,7 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 
     // Log de soumission de formulaire
-    await logToWebhook(
+    await logToWebhookAndConsole(
       "📝 Formulaire soumis", 
       `**${interaction.user.username}** a répondu au formulaire "${form.title}"`,
       [
@@ -1189,7 +1190,7 @@ async function hasGuildPermission(req, res, next) {
         Authorization: `Bearer ${req.session.accessToken}`
       }
     }).catch(error => {
-      console.error('Erreur lors de la récupération des serveurs:', error.response?.data || error.message);
+      console.log('Erreur lors de la récupération des serveurs:', error.response?.data || error.message);
       return { data: [] };
     });
 
@@ -1233,7 +1234,7 @@ async function hasGuildPermission(req, res, next) {
     
     return res.status(403).send('Vous n\'avez pas les permissions nécessaires dans ce serveur');
   } catch (error) {
-    console.error('Erreur lors de la vérification des permissions:', error);
+    console.log('Erreur lors de la vérification des permissions:', error);
     res.status(500).send('Erreur lors de la vérification des permissions');
   }
 }
@@ -1306,7 +1307,7 @@ app.get('/auth/discord/callback', async (req, res) => {
     req.session.user = userResponse.data;
     
     // Log de connexion au panel web
-    await logToWebhook(
+    await logToWebhookAndConsole(
       "👤 Connexion au panel web", 
       `**${userResponse.data.username}** s'est connecté au panel web.`,
       [
@@ -1321,7 +1322,7 @@ app.get('/auth/discord/callback', async (req, res) => {
     delete req.session.returnTo;
     res.redirect(returnTo);
   } catch (error) {
-    console.error('Erreur d\'authentification Discord:', error.response?.data || error.message);
+    console.log('Erreur d\'authentification Discord:', error.response?.data || error.message);
     res.redirect('/error?title=Erreur+d%27authentification&message=Impossible+de+vous+authentifier+avec+Discord');
   }
 });
@@ -1497,7 +1498,7 @@ app.post('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, asyn
         console.log(`Message de formulaire modifié avec succès: ${existingMessageId}`);
       } catch (error) {
         // Si le message n'existe plus ou n'est pas accessible, en créer un nouveau
-        console.error(`Impossible de modifier le message existant ${existingMessageId}, création d'un nouveau:`, error);
+        console.log(`Impossible de modifier le message existant ${existingMessageId}, création d'un nouveau:`, error);
         sentMessage = await embedChan.send({
           embeds: [formEmbed],
           components: [new ActionRowBuilder().addComponents(btn)]
@@ -1521,7 +1522,7 @@ app.post('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, asyn
     // Log de modification de formulaire
     if (oldForm) {
       const guild = client.guilds.cache.get(guildId);
-      await logToWebhook(
+      await logToWebhookAndConsole(
         "📝 Modification de formulaire", 
         `**${req.session.user.username}** a modifié le formulaire "${updatedForm.title}" sur le serveur **${guild?.name || guildId}**`,
         [
@@ -1537,7 +1538,7 @@ app.post('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, asyn
     
     res.json({ success: true, redirect: '/success' });
   } catch (error) {
-    console.error('Erreur lors de la sauvegarde du formulaire:', error);
+    console.log('Erreur lors de la sauvegarde du formulaire:', error);
     res.status(500).json({ error: 'Erreur lors de la sauvegarde du formulaire', details: error.message });
   }
 });
@@ -1603,7 +1604,7 @@ app.post('/api/form/:guildId', isAuthenticated, hasGuildPermission, async (req, 
     
     // Log de création de formulaire
     const guild = client.guilds.cache.get(guildId);
-    await logToWebhook(
+    await logToWebhookAndConsole(
       "✨ Création de formulaire", 
       `**${req.session.user.username}** a créé un nouveau formulaire "${updatedForm.title}" sur le serveur **${guild?.name || guildId}**`,
       [
@@ -1617,7 +1618,7 @@ app.post('/api/form/:guildId', isAuthenticated, hasGuildPermission, async (req, 
     
     res.json({ success: true, formId: finalFormId, redirect: '/success' });
   } catch (error) {
-    console.error('Erreur lors de la sauvegarde du formulaire:', error);
+    console.log('Erreur lors de la sauvegarde du formulaire:', error);
     res.status(500).json({ error: 'Erreur lors de la sauvegarde du formulaire', details: error.message });
   }
 });
@@ -1667,7 +1668,7 @@ app.get('/api/guilds', isAuthenticated, async (req, res) => {
     
     res.json(guildsWithFormInfo);
   } catch (error) {
-    console.error('Erreur lors de la récupération des serveurs:', error);
+    console.log('Erreur lors de la récupération des serveurs:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des serveurs' });
   }
 });
@@ -1722,7 +1723,7 @@ app.delete('/api/forms/:guildId/:formId', isAuthenticated, hasGuildPermission, a
         await message.delete();
         console.log(`Message de formulaire supprimé: ${form.embedMessageId}`);
       } catch (error) {
-        console.error(`Impossible de supprimer le message Discord: ${error.message}`);
+        console.log(`Impossible de supprimer le message Discord: ${error.message}`);
         // On continue même si le message ne peut pas être supprimé
       }
     }
@@ -1739,7 +1740,7 @@ app.delete('/api/forms/:guildId/:formId', isAuthenticated, hasGuildPermission, a
     fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
     
     // Log de suppression de formulaire
-    await logToWebhook(
+    await logToWebhookAndConsole(
       "🗑️ Suppression de formulaire", 
       `**${req.session.user.username}** a supprimé le formulaire "${form.title}" du serveur **${guild?.name || guildId}**`,
       [
@@ -1752,7 +1753,7 @@ app.delete('/api/forms/:guildId/:formId', isAuthenticated, hasGuildPermission, a
     
     res.json({ success: true });
   } catch (error) {
-    console.error('Erreur lors de la suppression du formulaire:', error);
+    console.log('Erreur lors de la suppression du formulaire:', error);
     res.status(500).json({ error: 'Erreur lors de la suppression du formulaire' });
   }
 });
@@ -1800,7 +1801,7 @@ app.post('/api/forms/:guildId/:formId/toggle', isAuthenticated, hasGuildPermissi
         
         console.log(`Message de formulaire mis à jour avec statut ${isDisabled ? 'désactivé' : 'activé'}: ${form.embedMessageId}`);
       } catch (error) {
-        console.error(`Impossible de mettre à jour le message Discord: ${error.message}`);
+        console.log(`Impossible de mettre à jour le message Discord: ${error.message}`);
         // On continue même si le message ne peut pas être mis à jour
       }
     }
@@ -1809,7 +1810,7 @@ app.post('/api/forms/:guildId/:formId/toggle', isAuthenticated, hasGuildPermissi
     fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
     
     // Log de changement de statut du formulaire
-    await logToWebhook(
+    await logToWebhookAndConsole(
       isDisabled ? "🔴 Formulaire désactivé" : "🟢 Formulaire activé", 
       `**${req.session.user.username}** a ${isDisabled ? 'désactivé' : 'activé'} le formulaire "${form.title}" du serveur **${guild?.name || guildId}**`,
       [
@@ -1822,7 +1823,7 @@ app.post('/api/forms/:guildId/:formId/toggle', isAuthenticated, hasGuildPermissi
     
     res.json({ success: true, status: status });
   } catch (error) {
-    console.error('Erreur lors de la modification du statut du formulaire:', error);
+    console.log('Erreur lors de la modification du statut du formulaire:', error);
     res.status(500).json({ error: 'Erreur lors de la modification du statut du formulaire' });
   }
 });
@@ -1836,6 +1837,22 @@ app.get('/api/user', isAuthenticated, (req, res) => {
 app.use((req, res) => {
   res.redirect('/error?title=Page+non+trouvée&message=La+page+demandée+n%27existe+pas');
 });
+
+// Démarrage étape par étape
+(async () => {
+  console.log('\n--- Démarrage du bot FormsBot ---');
+  console.log('1. Chargement de la configuration...');
+  // config déjà chargé
+  console.log('2. Chargement des commandes...');
+  const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
+  console.log(`   → ${commandFiles.length} commandes trouvées.`);
+  console.log('3. Initialisation du client Discord...');
+  // client déjà créé
+  console.log('4. Chargement des formulaires...');
+  let forms = fs.existsSync(formsPath) ? fs.readJsonSync(formsPath) : {};
+  console.log(`   → ${Object.keys(forms).length} serveurs avec formulaires.`);
+  console.log('5. Connexion à Discord...');
+})();
 
 // Démarrer le serveur
 server.listen(config.webserver.port, () => {
