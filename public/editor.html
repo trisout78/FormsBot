@@ -444,9 +444,20 @@
                     alertBox.classList.add('hidden');
                 }, 5000);
             }
-            
-            // Fonction pour ajouter une nouvelle question
+            const MAX_QUESTIONS = 25;
+
+            function updateAddQuestionButton() {
+                const btnAddQuestion = document.getElementById('btnAddQuestion');
+                const questionCount = document.querySelectorAll('.question-item').length;
+                btnAddQuestion.style.display = questionCount >= MAX_QUESTIONS ? 'none' : 'block';
+            }
+
             function addQuestion(text = '', style = 'SHORT') {
+                if (document.querySelectorAll('.question-item').length >= MAX_QUESTIONS) {
+                    showAlert('Limite de 25 questions atteinte', 'error');
+                    return;
+                }
+
                 const template = document.getElementById('questionTemplate');
                 const clone = template.content.cloneNode(true);
                 
@@ -460,9 +471,11 @@
                 
                 removeBtn.addEventListener('click', function() {
                     questionItem.remove();
+                    updateAddQuestionButton();
                 });
                 
                 questionsContainer.appendChild(clone);
+                updateAddQuestionButton();
             }
             
             // Charger les données du formulaire
