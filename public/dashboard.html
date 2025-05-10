@@ -269,6 +269,36 @@
         .form-view-container {
             display: none;
         }
+        @media (max-width: 768px) {
+            .form-actions {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            .btn {
+                width: 100%;
+                padding: 0.5rem;
+                font-size: 0.85rem;
+                flex: none;
+                display: block;
+            }
+            .form-actions a.btn {
+                text-align: center;
+                box-sizing: border-box;
+            }
+            .guild-actions {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            .guild-actions .btn {
+                width: 100%;
+                margin: 0;
+                padding: 0.5rem;
+                font-size: 0.85rem;
+                flex: none;
+                display: block;
+                box-sizing: border-box;
+            }
+        }
     </style>
 </head>
 <body>
