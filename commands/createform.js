@@ -8,11 +8,17 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   async execute(interaction, client) {
+    // Vérifier la limite de formulaires pour ce serveur
+    const guildId = interaction.guildId;
+    const formsForGuild = client.forms[guildId] || {};
+    const formCount = Object.keys(formsForGuild).length;
+    const isPremium = client.premiumGuilds && client.premiumGuilds.includes(guildId);
+    if (!isPremium && formCount >= 3) {
+      return interaction.reply({ content: 'Limite atteinte: 3 formulaires max. Passez en premium pour des formulaires illimités.', ephemeral: true });
+    }
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
       return interaction.reply({ content: 'Vous n\'avez pas la permission de créer des formulaires.', ephemeral: true });
     }
-    
-    const guildId = interaction.guildId;
     
     // Créer l'URL pour la création du formulaire
     const formUrl = `${config.webserver.baseUrl}/create/${guildId}`;

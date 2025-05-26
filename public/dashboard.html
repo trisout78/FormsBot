@@ -148,6 +148,11 @@
         .btn-success:hover {
             background-color: #45C46A;
         }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
         .empty-state {
             text-align: center;
             padding: 3rem 0;
@@ -462,13 +467,17 @@
                         iconHtml = initials;
                     }
                     
+                    const limitText = guild.isPremium ? '∞' : 3;
+                    const atLimit = !guild.isPremium && guild.formCount >= 3;
                     guildCard.innerHTML = `
                         <div class="guild-icon">${iconHtml}</div>
                         <div class="guild-info">
                             <h2 class="guild-name">${guild.name}</h2>
-                            <p class="guild-forms">${guild.formCount || 0} formulaire(s)</p>
+                            <p class="guild-forms">${guild.formCount}/${limitText} formulaires</p>
                             <div class="guild-actions">
-                                <a href="/create/${guild.id}" class="btn btn-primary">Nouveau formulaire</a>
+                                ${atLimit
+                                  ? `<button class="btn btn-primary" disabled>Nouveau formulaire</button>`
+                                  : `<a href="/create/${guild.id}" class="btn btn-primary">Nouveau formulaire</a>`}
                                 ${guild.formCount > 0 ? `<button class="btn btn-secondary view-forms" data-id="${guild.id}" data-name="${guild.name}">Voir les formulaires</button>` : ''}
                             </div>
                         </div>

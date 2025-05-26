@@ -46,6 +46,11 @@ const formsPath = './forms.json';
 let forms = fs.existsSync(formsPath) ? fs.readJsonSync(formsPath) : {};
 client.forms = forms;
 client.formsPath = formsPath;
+
+// Charger la liste des guildes premium depuis premium.json
+const premiumPath = './premium.json';
+let premiumGuilds = fs.existsSync(premiumPath) ? fs.readJsonSync(premiumPath) : [];
+client.premiumGuilds = premiumGuilds;
 client.formBuilders = new Map();
 // Stockage temporaire pour les réponses partielles aux formulaires multi-étapes
 client.tempResponses = new Map();
@@ -1335,6 +1340,15 @@ app.get('/logout', (req, res) => {
 
 // Route pour créer un nouveau formulaire
 app.get('/create/:guildId', isAuthenticated, hasGuildPermission, (req, res) => {
+  const { guildId } = req.params;
+  const formsForGuild = client.forms[guildId] || {};
+  const formCount = Object.keys(formsForGuild).length;
+  const isPremium = client.premiumGuilds.includes(guildId);
+  // Si limite atteinte et non premium
+  if (!isPremium && formCount >= 3) {
+    // Afficher une page d'erreur
+    return res.status(403).sendFile(path.join(__dirname, 'public', 'error.html'));
+  }
   res.sendFile(path.join(__dirname, 'public', 'editor.html'));
 });
 
@@ -1441,6 +1455,13 @@ app.post('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, asyn
     return res.status(400).json({ error: 'Données du formulaire manquantes' });
   }
   
+  // Vérification de la limite de formulaires pour les serveurs non premium
+  const formsForGuild = client.forms[guildId] || {};
+  const formCount = Object.keys(formsForGuild).length;
+  if (!client.premiumGuilds.includes(guildId) && formCount >= 3) {
+    return res.status(403).json({ error: 'Limite atteinte', message: "Vous avez atteint la limite de 3 formulaires. Passez en premium pour des formulaires illimités." });
+  }
+
   try {
     // Valider le formulaire
     if (!updatedForm.title || !updatedForm.embedText || !updatedForm.buttonLabel ||
@@ -1552,6 +1573,13 @@ app.post('/api/form/:guildId', isAuthenticated, hasGuildPermission, async (req, 
     return res.status(400).json({ error: 'Données du formulaire manquantes' });
   }
   
+  // Vérification de la limite de formulaires pour les serveurs non premium
+  const formsForGuild = client.forms[guildId] || {};
+  const formCount = Object.keys(formsForGuild).length;
+  if (!client.premiumGuilds.includes(guildId) && formCount >= 3) {
+    return res.status(403).json({ error: 'Limite atteinte', message: "Vous avez atteint la limite de 3 formulaires. Passez en premium pour des formulaires illimités." });
+  }
+
   try {
     // Valider le formulaire
     if (!updatedForm.title || !updatedForm.embedText || !updatedForm.buttonLabel ||
@@ -1660,9 +1688,13 @@ app.get('/api/guilds', isAuthenticated, async (req, res) => {
     // Ajouter des informations sur les formulaires existants
     const guildsWithFormInfo = availableGuilds.map(guild => {
       const formCount = client.forms[guild.id] ? Object.keys(client.forms[guild.id]).length : 0;
+      const isPremium = client.premiumGuilds.includes(guild.id);
+      const limit = isPremium ? Infinity : 3;
       return {
         ...guild,
-        formCount
+        formCount,
+        isPremium,
+        limit
       };
     });
     
