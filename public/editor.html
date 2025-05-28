@@ -260,6 +260,89 @@
             margin-bottom: 2rem;
             width: 100%;
         }
+        .ai-generation {
+            background: linear-gradient(135deg, #5865F2, #7C3AED);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .ai-generation:hover {
+            background: linear-gradient(135deg, #4752C4, #6B21A8);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
+        }
+        .ai-generation:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        .ai-generation .crown {
+            font-size: 1.2rem;
+            animation: sparkle 2s infinite;
+        }
+        @keyframes sparkle {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .ai-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1001;
+        }
+        .ai-modal-content {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        .ai-modal h3 {
+            margin-top: 0;
+            color: #5865F2;
+            text-align: center;
+        }
+        .ai-modal .form-group {
+            margin-bottom: 1rem;
+        }
+        .ai-modal .btn-group {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+        }
+        .ai-modal .btn-group button {
+            min-width: 120px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .premium-badge {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: #000;
+            padding: 0.2rem 0.5rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
     </style>
 </head>
 <body>
@@ -287,6 +370,15 @@
         <h1>Éditeur de formulaire Discord</h1>
         
         <div id="alertBox" class="alert hidden"></div>
+        
+        <!-- Génération IA - Section Premium -->
+        <div id="aiGenerationSection" class="form-group hidden">
+            <button id="btnGenerateAI" class="ai-generation">
+                <span class="crown">👑</span>
+                Générer par IA
+                <span class="premium-badge">Premium</span>
+            </button>
+        </div>
         
         <div class="form-group">
             <label for="formTitle">Titre du formulaire</label>
@@ -368,6 +460,28 @@
         </div>
     </div>
 
+    <!-- Modal IA pour saisir le sujet et nombre de questions -->
+    <div id="aiModal" class="ai-modal hidden">
+        <div class="ai-modal-content">
+            <h3>🤖 Génération de formulaire par IA</h3>
+            <div class="form-group">
+                <label for="aiSubject">Sujet du formulaire</label>
+                <input type="text" id="aiSubject" placeholder="Ex: Recrutement Modérateur serveur JKMC" maxlength="100">
+            </div>
+            <div class="form-group">
+                <label for="aiCount">Nombre de questions (1-25)</label>
+                <input type="number" id="aiCount" min="1" max="25" value="5">
+            </div>
+            <div class="btn-group">
+                <button id="aiCancel" class="button-secondary">Annuler</button>
+                <button id="aiGenerate" class="ai-generation">
+                    <span class="crown">👑</span>
+                    Générer
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Template pour une nouvelle question -->
     <template id="questionTemplate">
         <div class="question-item">
@@ -435,6 +549,18 @@
             const serverIcon = document.getElementById('serverIcon');
             const serverName = document.getElementById('serverName');
             
+            // Éléments IA
+            const aiGenerationSection = document.getElementById('aiGenerationSection');
+            const btnGenerateAI = document.getElementById('btnGenerateAI');
+            const aiModal = document.getElementById('aiModal');
+            const aiSubject = document.getElementById('aiSubject');
+            const aiCount = document.getElementById('aiCount');
+            const aiCancel = document.getElementById('aiCancel');
+            const aiGenerate = document.getElementById('aiGenerate');
+            
+            // Variable pour stocker si le serveur est premium
+            let isPremium = false;
+            
             // Fonction pour afficher une alerte
             function showAlert(message, type) {
                 alertBox.textContent = message;
@@ -491,6 +617,17 @@
                     }
                     
                     const data = await response.json();
+                    
+                    // Stocker le statut premium
+                    isPremium = data.isPremium;
+                    
+                    // Toujours afficher la section IA (pour tous les utilisateurs)
+                    aiGenerationSection.classList.remove('hidden');
+                    
+                    // Changer le texte du bouton si non premium
+                    if (!isPremium) {
+                        btnGenerateAI.innerHTML = '<span class="crown">👑</span> Générer par IA <span class="premium-badge">Premium</span>';
+                    }
                     
                     // Afficher les informations de l'utilisateur
                     if (data.user) {
@@ -684,6 +821,120 @@
             btnAddQuestion.addEventListener('click', () => addQuestion());
             
             btnSave.addEventListener('click', saveForm);
+            
+            // Event listeners pour l'IA
+            btnGenerateAI.addEventListener('click', function() {
+                if (!isPremium) {
+                    // Récupérer l'ID du serveur depuis l'URL
+                    const pathParts = window.location.pathname.split('/');
+                    const guildId = pathParts[2]; // /create/GUILD_ID ou /edit/GUILD_ID/FORM_ID
+                    
+                    // Rediriger vers la page premium avec l'ID du serveur
+                    window.location.href = `/premium?guild=${guildId}`;
+                    return;
+                }
+                aiModal.classList.remove('hidden');
+            });
+            
+            aiCancel.addEventListener('click', function() {
+                aiModal.classList.add('hidden');
+                aiSubject.value = '';
+                aiCount.value = '5';
+            });
+            
+            aiGenerate.addEventListener('click', async function() {
+                const subject = aiSubject.value.trim();
+                const count = parseInt(aiCount.value);
+                
+                if (!subject) {
+                    showAlert('Veuillez saisir un sujet', 'error');
+                    return;
+                }
+                
+                if (!count || count < 1 || count > 25) {
+                    showAlert('Le nombre de questions doit être entre 1 et 25', 'error');
+                    return;
+                }
+                
+                // Désactiver le bouton et afficher le chargement
+                aiGenerate.disabled = true;
+                const originalText = aiGenerate.innerHTML;
+                aiGenerate.innerHTML = '<span class="loading"></span> Génération...';
+                
+                try {
+                    const response = await fetch(`/api/form/${guildId}/generate-ai`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ subject, count })
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Erreur lors de la génération IA');
+                    }
+                    
+                    const data = await response.json();
+                    const generatedForm = data.form;
+                    
+                    // Remplir le formulaire avec les données générées
+                    formTitleInput.value = generatedForm.title || '';
+                    embedTextInput.value = generatedForm.embedText || '';
+                    buttonLabelInput.value = generatedForm.buttonLabel || 'Répondre';
+                    singleResponseCheckbox.checked = generatedForm.singleResponse || false;
+                    
+                    // Options de révision
+                    if (generatedForm.reviewOptions) {
+                        reviewEnabledCheckbox.checked = generatedForm.reviewOptions.enabled || false;
+                        customMessagesEnabledCheckbox.checked = generatedForm.reviewOptions.customMessagesEnabled || false;
+                        acceptMessageInput.value = generatedForm.reviewOptions.acceptMessage || '';
+                        rejectMessageInput.value = generatedForm.reviewOptions.rejectMessage || '';
+                        
+                        reviewOptionsContainer.classList.toggle('hidden', !generatedForm.reviewOptions.enabled);
+                        const defaultMessagesContainer = document.getElementById('defaultMessagesContainer');
+                        defaultMessagesContainer.classList.toggle('hidden', generatedForm.reviewOptions.customMessagesEnabled);
+                    }
+                    
+                    // Supprimer toutes les questions existantes
+                    questionsContainer.innerHTML = '';
+                    
+                    // Ajouter les questions générées
+                    if (generatedForm.questions && generatedForm.questions.length > 0) {
+                        generatedForm.questions.forEach(q => {
+                            addQuestion(q.text || '', q.style || 'SHORT');
+                        });
+                    }
+                    
+                    // Afficher les informations de limite IA si disponibles
+                    if (data.rateLimitInfo) {
+                        const remainingText = data.rateLimitInfo.remaining > 0 
+                            ? `${data.rateLimitInfo.remaining} générations restantes cette heure`
+                            : 'Limite atteinte pour cette heure';
+                        showAlert(`Formulaire généré avec succès par IA! (${remainingText})`, 'success');
+                    } else {
+                        showAlert('Formulaire généré avec succès par IA!', 'success');
+                    }
+                    
+                    aiModal.classList.add('hidden');
+                    aiSubject.value = '';
+                    aiCount.value = '5';
+                    
+                } catch (error) {
+                    console.error('Erreur génération IA:', error);
+                    
+                    // Afficher un message d'erreur spécifique pour la limite de taux
+                    if (error.message.includes('429') || error.message.includes('Limite')) {
+                        showAlert('Limite de 10 générations IA par heure atteinte. Réessayez plus tard.', 'error');
+                    } else {
+                        showAlert(error.message, 'error');
+                    }
+                } finally {
+                    // Réactiver le bouton
+                    aiGenerate.disabled = false;
+                    aiGenerate.innerHTML = originalText;
+                }
+            });
             
             reviewEnabledCheckbox.addEventListener('change', () => {
                 reviewOptionsContainer.classList.toggle('hidden', !reviewEnabledCheckbox.checked);

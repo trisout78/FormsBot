@@ -15,6 +15,57 @@ const url = require('url');
 const crypto = require('crypto');
 const querystring = require('querystring');
 
+// Initialize OpenAI
+const OpenAI = require('openai');
+const openai = new OpenAI({ apiKey: config.openai.apiKey });
+
+// Rate limiting pour l'IA - 10 requêtes par heure par utilisateur
+const aiRateLimit = new Map(); // userId -> { count, resetTime }
+
+function checkAIRateLimit(userId) {
+  const now = Date.now();
+  const userLimit = aiRateLimit.get(userId);
+  
+  // Si pas d'entrée ou si l'heure est passée, reset
+  if (!userLimit || now > userLimit.resetTime) {
+    aiRateLimit.set(userId, {
+      count: 1,
+      resetTime: now + (60 * 60 * 1000) // 1 heure
+    });
+    return { allowed: true, remaining: 9, resetTime: now + (60 * 60 * 1000) };
+  }
+  
+  // Si limite atteinte
+  if (userLimit.count >= 10) {
+    return { 
+      allowed: false, 
+      remaining: 0, 
+      resetTime: userLimit.resetTime,
+      timeLeft: Math.ceil((userLimit.resetTime - now) / (60 * 1000)) // minutes restantes
+    };
+  }
+  
+  // Incrémenter le compteur
+  userLimit.count++;
+  aiRateLimit.set(userId, userLimit);
+  
+  return { 
+    allowed: true, 
+    remaining: 10 - userLimit.count, 
+    resetTime: userLimit.resetTime 
+  };
+}
+
+// Nettoyer les anciennes entrées toutes les heures
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, data] of aiRateLimit.entries()) {
+    if (now > data.resetTime) {
+      aiRateLimit.delete(userId);
+    }
+  }
+}, 60 * 60 * 1000); // Nettoyer toutes les heures
+
 // Fonction utilitaire pour envoyer des logs au webhook Discord et dans la console
 async function logToWebhookAndConsole(title, description, fields = [], color = 0x3498db) {
   // Format console log
@@ -1511,8 +1562,7 @@ app.get('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, (req,
     singleResponse: false,
     reviewOptions: { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' }
   };
-  
-  if (formId && client.forms[guildId]?.[formId]) {
+    if (formId && client.forms[guildId]?.[formId]) {
     form = { ...client.forms[guildId][formId] };
   }
   
@@ -1520,7 +1570,8 @@ app.get('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, (req,
     form: form,
     channels: channels,
     roles: roles,
-    user: req.session.user
+    user: req.session.user,
+    isPremium: client.premiumGuilds.includes(guildId)
   });
 });
 
@@ -1554,13 +1605,119 @@ app.get('/api/form/:guildId', isAuthenticated, hasGuildPermission, (req, res) =>
     singleResponse: false,
     reviewOptions: { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' }
   };
-  
-  res.json({
+    res.json({
     form: form,
     channels: channels,
     roles: roles,
-    user: req.session.user
+    user: req.session.user,
+    isPremium: client.premiumGuilds.includes(guildId)
   });
+});
+
+// AI form generation endpoint
+app.post('/api/form/:guildId/generate-ai', isAuthenticated, hasGuildPermission, async (req, res) => {
+  const { guildId } = req.params;
+  const { subject, count } = req.body;
+  const userId = req.session.user.id;
+  
+  // Vérifier si le serveur est premium
+  if (!client.premiumGuilds.includes(guildId)) {
+    return res.status(403).json({ error: 'Fonction réservée aux serveurs Premium' });
+  }
+  
+  // Vérifier le rate limiting
+  const rateLimitResult = checkAIRateLimit(userId);
+  if (!rateLimitResult.allowed) {
+    return res.status(429).json({ 
+      error: 'Limite de génération IA atteinte', 
+      message: `Vous avez atteint la limite de 10 générations par heure. Veuillez réessayer dans ${rateLimitResult.timeLeft} minutes.`,
+      resetTime: rateLimitResult.resetTime,
+      timeLeft: rateLimitResult.timeLeft
+    });
+  }
+  
+  if (!subject || !count) {
+    return res.status(400).json({ error: 'Sujet et nombre de questions requis' });
+  }
+  
+  if (!config.openai.apiKey) {
+    return res.status(500).json({ error: 'Clé OpenAI non configurée' });
+  }
+  
+  try {    const template = {
+      title: "",
+      questions: [{ text: "", style: "SHORT" }],
+      embedChannelId: "",
+      responseChannelId: "",
+      embedText: "",
+      buttonLabel: "",
+      singleResponse: false,
+      reviewOptions: {
+        enabled: false,
+        customMessagesEnabled: false,
+        acceptMessage: "",
+        rejectMessage: "",
+        acceptRoleId: "",
+        rejectRoleId: ""
+      },
+      embedMessageId: "",
+      respondents: {}
+    };
+    
+    const prompt = `Template JSON: ${JSON.stringify(template)}
+
+Sujet: ${subject}
+Questions: ${count}
+
+Instructions importantes:
+- Le "title" doit être un titre accrocheur pour le formulaire
+- Le "embedText" doit être une description engageante du formulaire (2-3 phrases)
+- Le "buttonLabel" doit être un appel à l'action approprié (ex: "Postuler", "Répondre", "S'inscrire")
+- Chaque question dans "questions" doit avoir:
+  * "text": le texte de la question (MAXIMUM 45 caractères)
+  * "style": soit "SHORT" pour réponse courte, soit "PARAGRAPH" pour réponse longue
+- Varie les types de questions (SHORT/PARAGRAPH) selon leur nature
+- Questions courtes (SHORT): nom, âge, pseudo, choix simple
+- Questions longues (PARAGRAPH): motivation, expérience, description
+
+ATTENTION CRITIQUE: Les textes des questions ne doivent JAMAIS dépasser 45 caractères !`;
+    
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4.1-mini",
+      messages: [
+        {
+          role: "system",
+          content: "Tu es un assistant expert en création de formulaires Discord. Tu dois créer des formulaires complets et engageants. Réponds UNIQUEMENT avec le JSON finalisé, sans explication ni markdown. Assure-toi que chaque question respecte la limite de 45 caractères et que les styles SHORT/PARAGRAPH sont appropriés au type de question."
+        },
+        {
+          role: "user", 
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.7,
+      max_tokens: 2048
+    });
+    
+    const generatedForm = JSON.parse(completion.choices[0].message.content);
+      // Log de génération IA
+    await logToWebhookAndConsole(
+      "🤖 Génération IA de formulaire", 
+      `**${req.session.user.username}** a généré un formulaire par IA sur le serveur **${client.guilds.cache.get(guildId)?.name || guildId}**`,
+      [
+        { name: "Sujet", value: subject, inline: true },
+        { name: "Questions", value: count.toString(), inline: true },
+        { name: "Utilisateur", value: `${req.session.user.username} (ID: ${req.session.user.id})`, inline: false },
+        { name: "Restantes", value: `${rateLimitResult.remaining}/10 générations restantes`, inline: true }
+      ],
+      0x00FF00
+    );
+    
+    res.json({ success: true, form: generatedForm, rateLimitInfo: rateLimitResult });
+  } catch (error) {
+    console.error('Erreur génération IA:', error);
+    res.status(500).json({ error: 'Erreur lors de la génération IA: ' + error.message });
+  }
 });
 
 // API pour sauvegarder le formulaire - Mise à jour pour rediriger vers la page de succès

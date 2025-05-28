@@ -17,6 +17,7 @@
     "express": "^5.1.0",
     "express-session": "^1.18.1",
     "fs-extra": "^10.0.0",
+    "openai": "^4.103.0",
     "querystring": "^0.2.1"
   }
 }
