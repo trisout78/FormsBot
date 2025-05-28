@@ -151,6 +151,20 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        .terms-acceptance {
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            color: #666;
+            text-align: center;
+            line-height: 1.4;
+        }
+        .terms-acceptance a {
+            color: #5865F2;
+            text-decoration: none;
+        }
+        .terms-acceptance a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -221,6 +235,10 @@
                     💳 Payer avec PayPal - 3,99 €
                 </button>
             </form>
+            
+            <div class="terms-acceptance">
+                <p>En achetant, vous acceptez les <a href="/terms-of-service" target="_blank">Conditions Générales d'Utilisation</a>, la <a href="/privacy-policy" target="_blank">Politique de Confidentialité</a> et les <a href="/terms-of-sale" target="_blank">Conditions Générales de Vente</a>.</p>
+            </div>
         </div>
 
         <a href="/dashboard" class="back-link">Retour au tableau de bord</a>
