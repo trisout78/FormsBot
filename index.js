@@ -258,6 +258,46 @@ function generateGiftCode() {
   return result;
 }
 
+// Configuration des statuts rotatifs du bot
+const botStatuses = [
+  { type: 'Playing', name: '📝 Créer des formulaires' },
+  { type: 'Watching', name: '📊 Les réponses arriver' },
+  { type: 'Listening', name: '💬 Vos commandes' },
+  { type: 'Playing', name: '🎯 Collecter des données' },
+  { type: 'Watching', name: '⚙️ Les configurations' },
+  { type: 'Playing', name: '🤖 Assistant IA intégré' },
+  { type: 'Listening', name: '📢 Les notifications' },
+  { type: 'Playing', name: '🔒 Modération avancée' },
+  { type: 'Watching', name: '📈 Les statistiques' },
+  { type: 'Playing', name: '💎 Premium disponible' }
+];
+
+let currentStatusIndex = 0;
+
+// Fonction pour mettre à jour le statut du bot
+function updateBotStatus() {
+  if (!client.user) return;
+  
+  const status = botStatuses[currentStatusIndex];
+  const activityType = status.type === 'Playing' ? 0 : 
+                      status.type === 'Streaming' ? 1 : 
+                      status.type === 'Listening' ? 2 : 
+                      status.type === 'Watching' ? 3 : 0;
+  
+  client.user.setPresence({
+    activities: [{
+      name: status.name,
+      type: activityType
+    }],
+    status: 'online'
+  });
+  
+  // Passer au statut suivant
+  currentStatusIndex = (currentStatusIndex + 1) % botStatuses.length;
+  
+  console.log(`Statut mis à jour: ${status.type} ${status.name}`);
+}
+
 client.formBuilders = new Map();
 // Stockage temporaire pour les réponses partielles aux formulaires multi-étapes
 client.tempResponses = new Map();
@@ -345,6 +385,11 @@ client.once(Events.ClientReady, async () => {
     ],
     0x57F287 // Couleur verte
   );
+    // Mettre à jour le statut immédiatement au démarrage
+  updateBotStatus();
+  
+  // Démarrer la rotation des statuts toutes les minutes
+  setInterval(updateBotStatus, 60000); // Changer de statut toutes les minutes
 });
 
 // Log quand le bot s'arrête
@@ -1593,9 +1638,9 @@ app.get('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, (req,
   // Si formId est fourni, récupérer le formulaire existant
   let form = {
     title: '',
-    questions: [],
-    embedChannelId: null,
-    responseChannelId: null,
+    questions: [{ text: '', style: 'SHORT' }],
+    embedChannelId: '',
+    responseChannelId: '',
     embedText: '',
     buttonLabel: 'Répondre',
     singleResponse: false,
@@ -1625,7 +1670,7 @@ app.get('/api/form/:guildId', isAuthenticated, hasGuildPermission, (req, res) =>
   
   // Obtenir les canaux du serveur
   const channels = guild.channels.cache
-    .filter(c => c.type === 0) // TextChannel
+    .filter(c => c.type ===  0) // TextChannel
     .map(c => ({ id: c.id, name: c.name }));
   
   // Obtenir les rôles du serveur
