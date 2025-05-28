@@ -219,6 +219,33 @@ function loadPremiumList() {
 
 // Charger la liste des guildes premium
 loadPremiumList();
+
+// Stockage des codes cadeaux (format : { code: { guildId: null, createdBy: userId, createdAt: timestamp, used: false, usedBy: null, usedAt: null } })
+const giftCodesPath = './gift-codes.json';
+let giftCodes = fs.existsSync(giftCodesPath) ? fs.readJsonSync(giftCodesPath) : {};
+
+// Fonction pour sauvegarder les codes cadeaux
+function saveGiftCodes() {
+  try {
+    fs.writeJsonSync(giftCodesPath, giftCodes, { spaces: 2 });
+    return true;
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde des codes cadeaux:', error);
+    return false;
+  }
+}
+
+// Fonction pour générer un code cadeau aléatoire
+function generateGiftCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 16; i++) {
+    if (i > 0 && i % 4 === 0) result += '-';
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 client.formBuilders = new Map();
 // Stockage temporaire pour les réponses partielles aux formulaires multi-étapes
 client.tempResponses = new Map();
@@ -2135,6 +2162,93 @@ app.post('/api/forms/:guildId/:formId/toggle', isAuthenticated, hasGuildPermissi
   }
 });
 
+// API pour utiliser un code cadeau
+app.post('/api/gift-code/redeem', isAuthenticated, async (req, res) => {
+  const { giftCode, guildId } = req.body;
+  
+  if (!giftCode || !guildId) {
+    return res.status(400).json({ error: 'Code cadeau et ID du serveur requis' });
+  }
+  
+  try {
+    // Vérifier si le code existe et n'est pas utilisé
+    const code = giftCodes[giftCode.toUpperCase()];
+    if (!code) {
+      return res.status(404).json({ error: 'Code cadeau invalide' });
+    }
+    
+    if (code.used) {
+      return res.status(410).json({ error: 'Ce code cadeau a déjà été utilisé' });
+    }
+    
+    // Vérifier si le serveur n'est pas déjà premium
+    if (client.premiumGuilds.includes(guildId)) {
+      return res.status(409).json({ error: 'Ce serveur est déjà premium' });
+    }
+    
+    // Vérifier les permissions de l'utilisateur sur le serveur
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) {
+      return res.status(404).json({ error: 'Serveur introuvable' });
+    }
+    
+    // Vérifier que l'utilisateur a les permissions sur le serveur
+    try {
+      const guildsResponse = await axios.get(`${DISCORD_API_URL}/users/@me/guilds`, {
+        headers: {
+          Authorization: `Bearer ${req.session.accessToken}`
+        }
+      });
+
+      const userGuild = guildsResponse.data.find(g => g.id === guildId);
+      if (!userGuild) {
+        return res.status(403).json({ error: 'Vous n\'êtes pas membre de ce serveur' });
+      }
+
+      const permissions = BigInt(userGuild.permissions || 0);
+      const hasManageMessages = (permissions & BigInt(0x2000)) !== BigInt(0);
+      const hasAdmin = (permissions & BigInt(0x8)) !== BigInt(0);
+      
+      if (!hasManageMessages && !hasAdmin && !userGuild.owner) {
+        return res.status(403).json({ error: 'Vous n\'avez pas les permissions nécessaires sur ce serveur' });
+      }
+    } catch (permError) {
+      return res.status(500).json({ error: 'Erreur lors de la vérification des permissions' });
+    }
+    
+    // Marquer le code comme utilisé
+    code.used = true;
+    code.usedBy = req.session.user.id;
+    code.usedAt = new Date().toISOString();
+    code.guildId = guildId;
+    
+    // Ajouter le serveur à la liste premium
+    client.premiumGuilds.push(guildId);
+    
+    // Sauvegarder les modifications
+    saveGiftCodes();
+    savePremiumList();
+    
+    // Log de l'utilisation du code cadeau
+    await logToWebhookAndConsole(
+      "🎁 Code cadeau utilisé", 
+      `**${req.session.user.username}** a utilisé un code cadeau pour passer le serveur **${guild.name}** en Premium`,
+      [
+        { name: "Code", value: giftCode, inline: true },
+        { name: "Serveur", value: guild.name, inline: true },
+        { name: "Utilisateur", value: `${req.session.user.username} (ID: ${req.session.user.id})`, inline: false },
+        { name: "Créé par", value: `<@${code.createdBy}>`, inline: true }
+      ],
+      0xFFD700
+    );
+    
+    res.json({ success: true, message: 'Code cadeau activé avec succès' });
+  } catch (error) {
+    console.error('Erreur lors de l\'utilisation du code cadeau:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'utilisation du code cadeau' });
+  }
+});
+
 // Récupérer les informations de l'utilisateur
 app.get('/api/user', isAuthenticated, (req, res) => {
   res.json(req.session.user);
@@ -2514,4 +2628,17 @@ app.get('/payment-cancel', isAuthenticated, (req, res) => {
 // Route pour token déjà utilisé
 app.get('/token-used', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'token-used.html'));
+});
+
+// Routes pour les documents légaux
+app.get('/terms-of-service', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'terms-of-service.html'));
+});
+
+app.get('/privacy-policy', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'privacy-policy.html'));
+});
+
+app.get('/terms-of-sale', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'terms-of-sale.html'));
 });
