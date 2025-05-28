@@ -67,6 +67,10 @@
             overflow: hidden;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 300px;
         }
         .guild-card:hover {
             transform: translateY(-5px);
@@ -91,6 +95,10 @@
         }
         .guild-info {
             padding: 1.5rem;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
         }
         .guild-name {
             margin: 0 0 0.5rem 0;
@@ -104,12 +112,15 @@
         }
         .guild-actions {
             display: flex;
+            flex-direction: column;
             gap: 0.5rem;
+            margin-top: auto;
+            padding-top: 1rem;
         }
         .btn {
-            flex: 1;
-            display: inline-block;
-            padding: 0.75rem 1.5rem;
+            width: 100%;
+            display: block;
+            padding: 0.75rem 1rem;
             text-align: center;
             text-decoration: none;
             border-radius: 5px;
@@ -119,6 +130,10 @@
             border: none;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             font-size: 0.9rem;
+            box-sizing: border-box;
+            word-wrap: break-word;
+            white-space: normal;
+            line-height: 1.4;
         }
         .btn-primary {
             background-color: #5865F2;
@@ -147,6 +162,54 @@
         }
         .btn-success:hover {
             background-color: #45C46A;
+        }
+        .btn-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        .btn-warning:hover {
+            background-color: #e0a800;
+            color: #212529;
+        }
+        .btn-premium {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: white;
+            border: none;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+        }
+        .btn-premium:hover {
+            background: linear-gradient(135deg, #e6c200, #e6940a);
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(255, 215, 0, 0.3);
+        }
+        .btn-premium-small {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: white;
+            border: none;
+            font-size: 0.85rem;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+            padding: 0.6rem 0.8rem;
+        }
+        .btn-premium-small:hover {
+            background: linear-gradient(135deg, #e6c200, #e6940a);
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 6px rgba(255, 215, 0, 0.3);
+        }
+        .premium-badge {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            display: inline-block;
+            margin-left: 0.5rem;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+            white-space: nowrap;
         }
         .btn:disabled {
             opacity: 0.6;
@@ -275,33 +338,98 @@
             display: none;
         }
         @media (max-width: 768px) {
+            .container {
+                margin: 1rem;
+                padding: 1rem;
+            }
+            .guild-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            .guild-card {
+                margin-bottom: 1rem;
+            }
+            .guild-name {
+                font-size: 1.1rem;
+                line-height: 1.3;
+                word-wrap: break-word;
+            }
+            .premium-badge {
+                display: block;
+                margin: 0.5rem 0 0 0;
+                text-align: center;
+                width: fit-content;
+                font-size: 0.75rem;
+            }
+            .guild-actions {
+                flex-direction: column;
+                gap: 0.75rem;
+                margin-top: 1rem;
+            }
+            .guild-actions .btn {
+                width: 100%;
+                margin: 0;
+                padding: 0.8rem;
+                font-size: 0.9rem;
+                flex: none;
+                display: block;
+                box-sizing: border-box;
+                text-align: center;
+                word-wrap: break-word;
+                white-space: normal;
+                line-height: 1.4;
+            }
+            .btn-premium,
+            .btn-premium-small {
+                font-size: 0.9rem;
+                padding: 0.8rem;
+                font-weight: bold;
+            }
             .form-actions {
                 flex-direction: column;
                 gap: 0.75rem;
             }
-            .btn {
+            .form-actions .btn {
                 width: 100%;
-                padding: 0.5rem;
-                font-size: 0.85rem;
+                padding: 0.75rem;
+                font-size: 0.9rem;
                 flex: none;
                 display: block;
+                box-sizing: border-box;
+                text-align: center;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
             .form-actions a.btn {
                 text-align: center;
                 box-sizing: border-box;
             }
-            .guild-actions {
-                flex-direction: column;
-                gap: 0.75rem;
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                margin: 0.5rem;
+                padding: 0.75rem;
+            }
+            h1 {
+                font-size: 1.5rem;
+            }
+            .guild-name {
+                font-size: 1rem;
             }
             .guild-actions .btn {
-                width: 100%;
-                margin: 0;
-                padding: 0.5rem;
+                padding: 0.9rem;
                 font-size: 0.85rem;
-                flex: none;
-                display: block;
-                box-sizing: border-box;
+            }
+            .btn-premium,
+            .btn-premium-small {
+                padding: 0.9rem;
+                font-size: 0.85rem;
+            }
+            .premium-badge {
+                font-size: 0.7rem;
+                padding: 0.2rem 0.4rem;
             }
         }
     </style>
@@ -469,16 +597,37 @@
                     
                     const limitText = guild.isPremium ? '∞' : 3;
                     const atLimit = !guild.isPremium && guild.formCount >= 3;
+                    const premiumBadge = guild.isPremium ? '<span class="premium-badge">👑 PREMIUM</span>' : '';
+                    
+                    // Générer les boutons d'action de manière plus structurée
+                    let actionsHtml = '';
+                    
+                    if (atLimit) {
+                        // Si la limite est atteinte, cacher création mais afficher seulement le bouton "Voir les formulaires"
+                        actionsHtml = `<button class="btn btn-secondary view-forms" data-id="${guild.id}" data-name="${guild.name}">Voir les formulaires</button>`;
+                        if (!guild.isPremium) {
+                            actionsHtml += `<a href="/premium?guild=${guild.id}" class="btn btn-premium-small">👑 Découvrir Premium</a>`;
+                        }
+                    } else {
+                        // Sinon, montrer le bouton principal + optionnels
+                        actionsHtml = `<a href="/create/${guild.id}" class="btn btn-primary">Nouveau formulaire</a>`;
+                        
+                        if (guild.formCount > 0) {
+                            actionsHtml += `<button class="btn btn-secondary view-forms" data-id="${guild.id}" data-name="${guild.name}">Voir les formulaires</button>`;
+                        }
+                        
+                        if (!guild.isPremium) {
+                            actionsHtml += `<a href="/premium?guild=${guild.id}" class="btn btn-premium-small">👑 Découvrir Premium</a>`;
+                        }
+                    }
+                    
                     guildCard.innerHTML = `
                         <div class="guild-icon">${iconHtml}</div>
                         <div class="guild-info">
-                            <h2 class="guild-name">${guild.name}</h2>
+                            <h2 class="guild-name">${guild.name}${premiumBadge}</h2>
                             <p class="guild-forms">${guild.formCount}/${limitText} formulaires</p>
                             <div class="guild-actions">
-                                ${atLimit
-                                  ? `<button class="btn btn-primary" disabled>Nouveau formulaire</button>`
-                                  : `<a href="/create/${guild.id}" class="btn btn-primary">Nouveau formulaire</a>`}
-                                ${guild.formCount > 0 ? `<button class="btn btn-secondary view-forms" data-id="${guild.id}" data-name="${guild.name}">Voir les formulaires</button>` : ''}
+                                ${actionsHtml}
                             </div>
                         </div>
                     `;

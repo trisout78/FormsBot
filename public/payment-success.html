@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyForm - Paiement réussi</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            max-width: 600px;
+            margin: 2rem;
+            padding: 3rem;
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+        .success-icon {
+            font-size: 5rem;
+            color: #45C46A;
+            margin-bottom: 1rem;
+        }
+        .crown-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        h1 {
+            color: #45C46A;
+            margin-bottom: 1rem;
+            font-size: 2.5rem;
+        }
+        .premium-badge {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: white;
+            padding: 0.5rem 1.5rem;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin: 1rem 0;
+            display: inline-block;
+        }
+        .message {
+            font-size: 1.2rem;
+            margin: 2rem 0;
+            color: #666;
+        }
+        .features-unlocked {
+            background-color: #f8f9fa;
+            padding: 2rem;
+            border-radius: 10px;
+            margin: 2rem 0;
+        }
+        .features-unlocked h3 {
+            color: #5865F2;
+            margin-bottom: 1rem;
+        }
+        .feature-list {
+            text-align: left;
+            list-style: none;
+            padding: 0;
+        }
+        .feature-list li {
+            margin: 0.8rem 0;
+            position: relative;
+            padding-left: 2rem;
+        }
+        .feature-list li:before {
+            content: '✅';
+            position: absolute;
+            left: 0;
+        }
+        .btn {
+            display: inline-block;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            font-size: 1.1rem;
+            margin: 1rem 0.5rem;
+        }
+        .btn-primary {
+            background-color: #5865F2;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #4752C4;
+            transform: translateY(-2px);
+        }
+        .btn-secondary {
+            background-color: #99AAB5;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #7A8993;
+            transform: translateY(-2px);
+        }
+        .processing-note {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 2rem 0;
+            font-size: 0.9rem;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">✅</div>
+        <div class="crown-icon">👑</div>
+        <h1>Paiement réussi !</h1>
+        
+        <div class="premium-badge">🌟 SERVEUR PREMIUM 🌟</div>
+        
+        <div class="message">
+            Félicitations ! Votre serveur est maintenant <strong>Premium</strong> et bénéficie de toutes les fonctionnalités avancées de MyForm.
+        </div>
+
+        <div class="features-unlocked">
+            <h3>Fonctionnalités débloquées :</h3>
+            <ul class="feature-list">
+                <li>Formulaires illimités sur votre serveur</li>
+                <li>Accès aux futures fonctionnalités premium</li>
+                <li>Badge premium dans le tableau de bord</li>
+            </ul>
+        </div>
+
+        <div class="processing-note">
+            ⏱️ <strong>Note :</strong> L'activation du statut premium peut prendre quelques minutes. Si vous ne voyez pas les changements immédiatement, rafraîchissez votre tableau de bord dans quelques instants.
+        </div>
+
+        <div>
+            <a href="/dashboard" class="btn btn-primary">Retour au tableau de bord</a>
+            <a href="/" class="btn btn-secondary">Accueil</a>
+        </div>
+    </div>
+
+    <script>
+        // Auto-redirection après 10 secondes
+        setTimeout(() => {
+            window.location.href = '/dashboard';
+        }, 10000);
+
+        // Afficher un compte à rebours
+        let countdown = 10;
+        const countdownElement = document.createElement('p');
+        countdownElement.style.marginTop = '2rem';
+        countdownElement.style.color = '#666';
+        countdownElement.style.fontSize = '0.9rem';
+        document.querySelector('.container').appendChild(countdownElement);
+
+        const updateCountdown = () => {
+            countdownElement.textContent = `Redirection automatique vers le tableau de bord dans ${countdown} secondes...`;
+            countdown--;
+            if (countdown < 0) {
+                clearInterval(countdownInterval);
+            }
+        };
+
+        updateCountdown();
+        const countdownInterval = setInterval(updateCountdown, 1000);
+    </script>
+</body>
+</html>

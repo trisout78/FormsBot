@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyForm - Paiement annulé</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            max-width: 600px;
+            margin: 2rem;
+            padding: 3rem;
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .cancel-icon {
+            font-size: 5rem;
+            color: #ED4245;
+            margin-bottom: 1rem;
+        }
+        h1 {
+            color: #ED4245;
+            margin-bottom: 1rem;
+            font-size: 2.5rem;
+        }
+        .message {
+            font-size: 1.2rem;
+            margin: 2rem 0;
+            color: #666;
+        }
+        .info-box {
+            background-color: #f8f9fa;
+            padding: 2rem;
+            border-radius: 10px;
+            margin: 2rem 0;
+            border-left: 4px solid #5865F2;
+        }
+        .btn {
+            display: inline-block;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            font-size: 1.1rem;
+            margin: 1rem 0.5rem;
+        }
+        .btn-primary {
+            background-color: #5865F2;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #4752C4;
+            transform: translateY(-2px);
+        }
+        .btn-secondary {
+            background-color: #99AAB5;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #7A8993;
+            transform: translateY(-2px);
+        }
+        .btn-premium {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: white;
+            border: none;
+        }
+        .btn-premium:hover {
+            background: linear-gradient(135deg, #FFA500, #FF8C00);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="cancel-icon">❌</div>
+        <h1>Paiement annulé</h1>
+        
+        <div class="message">
+            Votre paiement a été annulé. Aucun montant n'a été débité de votre compte.
+        </div>
+
+        <div class="info-box">
+            <h3>Pourquoi passer Premium ?</h3>
+            <p>Avec MyForm Premium, vous débloquez des formulaires illimités et bénéficiez d'un support prioritaire pour seulement 3,99€ par serveur.</p>
+        </div>
+
+        <div>
+            <a href="#" onclick="history.back()" class="btn btn-premium">👑 Essayer à nouveau</a>
+            <a href="/dashboard" class="btn btn-primary">Retour au tableau de bord</a>
+            <a href="/" class="btn btn-secondary">Accueil</a>
+        </div>
+    </div>
+</body>
+</html>

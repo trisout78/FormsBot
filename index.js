@@ -12,6 +12,8 @@ const cookieParser = require('cookie-parser');
 const session = require('express-session');
 const axios = require('axios');
 const url = require('url');
+const crypto = require('crypto');
+const querystring = require('querystring');
 
 // Fonction utilitaire pour envoyer des logs au webhook Discord et dans la console
 async function logToWebhookAndConsole(title, description, fields = [], color = 0x3498db) {
@@ -47,10 +49,125 @@ let forms = fs.existsSync(formsPath) ? fs.readJsonSync(formsPath) : {};
 client.forms = forms;
 client.formsPath = formsPath;
 
-// Charger la liste des guildes premium depuis premium.json
-const premiumPath = './premium.json';
-let premiumGuilds = fs.existsSync(premiumPath) ? fs.readJsonSync(premiumPath) : [];
-client.premiumGuilds = premiumGuilds;
+// Chemin du fichier premium (utilisation de chemin absolu)
+const premiumPath = path.join(__dirname, 'premium.json');
+
+// Fonction utilitaire pour sauvegarder la liste premium de manière sécurisée
+function savePremiumList() {
+  try {
+    // Créer une sauvegarde avec timestamp (chemin absolu)
+    const backupPath = path.join(__dirname, `premium_backup_${Date.now()}.json`);
+    
+    // Sauvegarder l'ancienne version en backup
+    if (fs.existsSync(premiumPath)) {
+      fs.copySync(premiumPath, backupPath);
+    }
+    
+    // Valider que la liste ne contient que des IDs Discord valides
+    const validGuilds = client.premiumGuilds.filter(guildId => {
+      return typeof guildId === 'string' && /^\d{17,19}$/.test(guildId);
+    });
+    
+    // Supprimer les doublons
+    const uniqueGuilds = [...new Set(validGuilds)];
+    
+    // Mettre à jour la liste en mémoire
+    client.premiumGuilds = uniqueGuilds;
+    
+    // Sauvegarder avec métadonnées
+    const premiumData = {
+      lastUpdated: new Date().toISOString(),
+      count: uniqueGuilds.length,
+      guilds: uniqueGuilds
+    };
+    
+    fs.writeJsonSync(premiumPath, premiumData, { spaces: 2 });
+    
+    console.log(`Liste premium sauvegardée: ${uniqueGuilds.length} serveurs premium`);
+    
+    // Nettoyer les anciens backups (garder seulement les 5 derniers)
+    const backupFiles = fs.readdirSync(__dirname).filter(f => f.startsWith('premium_backup_'));
+    if (backupFiles.length > 5) {
+      backupFiles.sort().slice(0, -5).forEach(file => {
+        const filePath = path.join(__dirname, file);
+        try {
+          fs.removeSync(filePath);
+        } catch (e) {
+          console.warn(`Impossible de supprimer le backup ${file}:`, e.message);
+        }
+      });
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde de la liste premium:', error);
+    
+    // Tenter de restaurer depuis backup en cas d'erreur
+    try {
+      const backupFiles = fs.readdirSync(__dirname).filter(f => f.startsWith('premium_backup_'));
+      if (backupFiles.length > 0) {
+        const latestBackup = backupFiles.sort().pop();
+        const backupSource = path.join(__dirname, latestBackup);
+        fs.copySync(backupSource, premiumPath);
+        console.log(`Liste premium restaurée depuis backup: ${latestBackup}`);
+      }
+    } catch (restoreError) {
+      console.error('Impossible de restaurer depuis backup:', restoreError);
+    }
+    
+    return false;
+  }
+}
+
+// Fonction pour charger la liste premium au démarrage
+function loadPremiumList() {
+  try {
+    if (fs.existsSync(premiumPath)) {
+      const data = fs.readJsonSync(premiumPath);
+      
+      // Support de l'ancien format (array simple)
+      if (Array.isArray(data)) {
+        client.premiumGuilds = data.filter(id => id && typeof id === 'string' && /^\d{17,19}$/.test(id));
+        console.log(`Liste premium chargée (ancien format): ${client.premiumGuilds.length} serveurs`);
+        // Migrer vers le nouveau format
+        savePremiumList();
+      } 
+      // Nouveau format (objet avec métadonnées)
+      else if (data && Array.isArray(data.guilds)) {
+        client.premiumGuilds = data.guilds.filter(id => id && typeof id === 'string' && /^\d{17,19}$/.test(id));
+        console.log(`Liste premium chargée: ${client.premiumGuilds.length} serveurs (dernière MAJ: ${data.lastUpdated})`);
+      }
+      else {
+        throw new Error('Format de fichier premium invalide');
+      }
+    } else {
+      client.premiumGuilds = [];
+      console.log('Fichier premium inexistant, création d\'une nouvelle liste');
+      savePremiumList();
+    }
+  } catch (error) {
+    console.error('Erreur lors du chargement de la liste premium:', error);
+    client.premiumGuilds = [];
+    
+    // Tenter de charger depuis backup
+    try {
+      const backupFiles = fs.readdirSync(__dirname).filter(f => f.startsWith('premium_backup_'));
+      if (backupFiles.length > 0) {
+        const latestBackup = backupFiles.sort().pop();
+        const backupSource = path.join(__dirname, latestBackup);
+        const backupData = fs.readJsonSync(backupSource);
+        client.premiumGuilds = Array.isArray(backupData) ? backupData : (backupData.guilds || []);
+        console.log(`Liste premium restaurée depuis backup: ${latestBackup}`);
+        savePremiumList();
+      }
+    } catch (backupError) {
+      console.error('Impossible de restaurer depuis backup:', backupError);
+    }
+  }
+}
+
+// Charger la liste des guildes premium
+loadPremiumList();
 client.formBuilders = new Map();
 // Stockage temporaire pour les réponses partielles aux formulaires multi-étapes
 client.tempResponses = new Map();
@@ -1545,6 +1662,7 @@ app.post('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, asyn
       const guild = client.guilds.cache.get(guildId);
       await logToWebhookAndConsole(
         "📝 Modification de formulaire", 
+        
         `**${req.session.user.username}** a modifié le formulaire "${updatedForm.title}" sur le serveur **${guild?.name || guildId}**`,
         [
           { name: "Titre", value: updatedForm.title, inline: true },
@@ -1755,7 +1873,7 @@ app.delete('/api/forms/:guildId/:formId', isAuthenticated, hasGuildPermission, a
         await message.delete();
         console.log(`Message de formulaire supprimé: ${form.embedMessageId}`);
       } catch (error) {
-        console.log(`Impossible de supprimer le message Discord: ${error.message}`);
+        console.log(`Impossible de supprimer le message existant ${form.embedMessageId}: ${error.message}`);
         // On continue même si le message ne peut pas être supprimé
       }
     }
@@ -1865,30 +1983,378 @@ app.get('/api/user', isAuthenticated, (req, res) => {
   res.json(req.session.user);
 });
 
-// Gestion des erreurs 404
-app.use((req, res) => {
-  res.redirect('/error?title=Page+non+trouvée&message=La+page+demandée+n%27existe+pas');
+// Route pour afficher la page de paiement premium
+app.get('/premium', isAuthenticated, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'premium.html'));
 });
 
-// Démarrage étape par étape
-(async () => {
-  console.log('\n--- Démarrage du bot FormsBot ---');
-  console.log('1. Chargement de la configuration...');
-  // config déjà chargé
-  console.log('2. Chargement des commandes...');
-  const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
-  console.log(`   → ${commandFiles.length} commandes trouvées.`);
-  console.log('3. Initialisation du client Discord...');
-  // client déjà créé
-  console.log('4. Chargement des formulaires...');
-  let forms = fs.existsSync(formsPath) ? fs.readJsonSync(formsPath) : {};
-  console.log(`   → ${Object.keys(forms).length} serveurs avec formulaires.`);
-  console.log('5. Connexion à Discord...');
-})();
+// API pour obtenir les informations de paiement pour un serveur
+app.get('/api/payment/info/:guildId', isAuthenticated, hasGuildPermission, (req, res) => {
+  const { guildId } = req.params;
+  const guild = client.guilds.cache.get(guildId);
+  
+  if (!guild) {
+    return res.status(404).json({ error: 'Serveur introuvable' });
+  }
 
-// Démarrer le serveur
-server.listen(config.webserver.port, () => {
-  console.log(`Serveur web démarré sur le port ${config.webserver.port}`);
+  // Vérifier si déjà premium
+  const isPremium = client.premiumGuilds.includes(guildId);
+  
+  if (isPremium) {
+    return res.json({ error: 'Ce serveur est déjà premium' });
+  }
+
+  // Déterminer l'URL PayPal selon l'environnement
+  const paypalUrl = config.paypal.sandbox 
+    ? 'https://www.sandbox.paypal.com/cgi-bin/webscr'
+    : 'https://www.paypal.com/cgi-bin/webscr';
+
+  res.json({
+    guildName: guild.name,
+    isPremium: false,
+    paypalUrl: paypalUrl,
+    paypalEmail: config.paypal.email,
+    price: config.paypal.price,
+    currency: config.paypal.currency,
+    notifyUrl: `${baseUrl}/api/paypal/ipn`,
+    returnUrl: `${baseUrl}/payment-success`,
+    cancelUrl: `${baseUrl}/payment-cancel`
+  });
 });
 
-client.login(config.token);
+// Base de données des transactions pour éviter les doublons
+const processedTransactions = new Set();
+const paymentAttempts = new Map(); // Suivi des tentatives par IP
+
+// Middleware de sécurité pour les IPN
+function ipnSecurityMiddleware(req, res, next) {
+  const clientIP = req.ip || req.connection.remoteAddress;
+  console.log(`[IPN_SECURITY_MIDDLEWARE] Request received for ${req.path} from IP: ${clientIP}`);
+
+  // Rate limiting basique : max 10 tentatives par minute par IP
+  const now = Date.now();
+  const attempts = paymentAttempts.get(clientIP) || [];
+  const recentAttempts = attempts.filter(time => now - time < 60000); // 1 minute
+  
+  if (recentAttempts.length >= 10) {
+    console.log(`[IPN_SECURITY_MIDDLEWARE] Rate limit exceeded for IP: ${clientIP}. Blocking request.`);
+    return res.status(429).send('Trop de tentatives');
+  }
+  
+  recentAttempts.push(now);
+  paymentAttempts.set(clientIP, recentAttempts);
+  
+  console.log(`[IPN_SECURITY_MIDDLEWARE] IP: ${clientIP} passed rate limit. Current attempts in last minute: ${recentAttempts.length}`);
+  next();
+}
+
+// Middleware de débogage simple pour IPN
+function ipnDebugMiddleware(req, res, next) {
+  console.log('\n=== DÉBUT DEBUGGING IPN ===');
+  console.log('[IPN_DEBUG] Méthode:', req.method);
+  console.log('[IPN_DEBUG] URL:', req.url);
+  console.log('[IPN_DEBUG] Content-Type:', req.headers['content-type']);
+  console.log('[IPN_DEBUG] Content-Length:', req.headers['content-length']);
+  console.log('[IPN_DEBUG] User-Agent:', req.headers['user-agent']);
+  console.log('=== FIN DEBUGGING IPN ===\n');
+  next();
+}
+
+// Route IPN PayPal sécurisée pour traiter les notifications de paiement
+app.post('/api/paypal/ipn', 
+  ipnDebugMiddleware,
+  ipnSecurityMiddleware,
+  bodyParser.raw({ type: '*/*' }),
+  async (req, res) => {
+    console.log('[IPN_HANDLER] Entered main IPN handler.');
+    const clientIP = req.ip || req.connection.remoteAddress;
+    console.log(`Notification IPN PayPal reçue depuis ${clientIP}`);
+    
+    try {
+      // Debug: afficher les headers reçus
+      console.log('[IPN_DEBUG] Headers reçus:', {
+        'content-type': req.headers['content-type'],
+        'content-length': req.headers['content-length'],
+        'user-agent': req.headers['user-agent']
+      });
+      
+      // Debug: afficher le body brut
+      console.log('[IPN_DEBUG] Body type:', typeof req.body);
+      console.log('[IPN_DEBUG] Body length:', req.body ? req.body.length : 'undefined');
+        // Convertir le body en string avec gestion d'erreur
+      let raw;
+      try {
+        raw = req.body.toString('utf8');
+        console.log('[IPN_DEBUG] Raw data length:', raw.length);
+        console.log('[IPN_DEBUG] Raw data preview:', raw.substring(0, 200) + (raw.length > 200 ? '...' : ''));
+      } catch (e) {
+        console.error('[IPN_ERROR] Erreur lors de la conversion du body:', e);
+        return res.status(400).send('Erreur de format');
+      }
+      
+      // Parser les données avec validation et fallback
+      let formData;
+      try {
+        formData = querystring.parse(raw);
+        console.log('[IPN_DEBUG] Nombre de champs parsés:', Object.keys(formData).length);
+        console.log('[IPN_DEBUG] Clés disponibles:', Object.keys(formData));
+        
+        // Si le parsing avec querystring n'a pas donné de résultats, essayer JSON
+        if (Object.keys(formData).length === 0 && raw.length > 0) {
+          console.log('[IPN_DEBUG] Tentative de parsing JSON...');
+          try {
+            formData = JSON.parse(raw);
+            console.log('[IPN_DEBUG] Parsing JSON réussi, clés:', Object.keys(formData));
+          } catch (jsonError) {
+            console.log('[IPN_DEBUG] Parsing JSON échoué:', jsonError.message);
+            
+            // Dernier recours : parser manuellement si c'est du format key=value
+            if (raw.includes('=')) {
+              console.log('[IPN_DEBUG] Tentative de parsing manuel...');
+              const manualParsed = {};
+              raw.split('&').forEach(pair => {
+                const [key, value] = pair.split('=');
+                if (key && value !== undefined) {
+                  manualParsed[decodeURIComponent(key)] = decodeURIComponent(value);
+                }
+              });
+              formData = manualParsed;
+              console.log('[IPN_DEBUG] Parsing manuel, clés:', Object.keys(formData));
+            }
+          }
+        }
+      } catch (parseError) {
+        console.error('[IPN_ERROR] Erreur lors du parsing des données:', parseError);
+        return res.status(400).send('Erreur de parsing');
+      }
+      
+      // Fallback to express urlencoded parser if raw parsing fails
+      if (req.headers['content-type']?.includes('application/x-www-form-urlencoded') && typeof req.body === 'object' && Object.keys(req.body).length) {
+        formData = req.body;
+        console.log('[IPN_DEBUG] Used req.body for formData:', Object.keys(formData));
+      }
+      // Log détaillé pour debugging (sans données sensibles)
+      console.log('Données IPN reçues:', {
+        payment_status: formData.payment_status,
+        txn_id: formData.txn_id,
+        custom: formData.custom,
+        mc_gross: formData.mc_gross,
+        mc_currency: formData.mc_currency
+      });
+        // Vérification des champs requis avec diagnostic détaillé
+      const requiredFields = ['txn_id', 'payment_status', 'custom'];
+      const missingFields = requiredFields.filter(field => !formData[field]);
+      
+      if (missingFields.length > 0) {
+        console.log('[IPN_ERROR] Données IPN incomplètes. Champs manquants:', missingFields);
+        console.log('[IPN_ERROR] Tous les champs reçus:', JSON.stringify(formData, null, 2));
+        
+        await logToWebhookAndConsole(
+          "⚠️ IPN PayPal invalide",
+          `Données IPN incomplètes reçues depuis ${clientIP}`,
+          [
+            { name: "IP", value: clientIP, inline: true },
+            { name: "Raison", value: "Champs requis manquants", inline: true },
+            { name: "Champs manquants", value: missingFields.join(', '), inline: true },
+            { name: "Champs reçus", value: Object.keys(formData).join(', '), inline: true }
+          ],
+          0xFFA500
+        );
+        return res.status(400).send('Données incomplètes');
+      }
+      
+      // Éviter le traitement des doublons
+      const transactionId = formData.txn_id;
+      if (processedTransactions.has(transactionId)) {
+        console.log(`Transaction ${transactionId} déjà traitée`);
+        return res.status(200).send('Déjà traité');
+      }
+      
+      // Validation IPN : renvoyer les données à PayPal pour vérification
+      const verificationUrl = config.paypal.sandbox 
+        ? 'https://ipnpb.sandbox.paypal.com/cgi-bin/webscr'
+        : 'https://ipnpb.paypal.com/cgi-bin/webscr';
+      
+      const verificationData = 'cmd=_notify-validate&' + querystring.stringify(formData);
+      
+      const verification = await axios.post(verificationUrl, verificationData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': 'FormsBot-IPN-Verification/1.0'
+        },
+        timeout: 10000 // Timeout de 10 secondes
+      });
+      
+      if (verification.data !== 'VERIFIED') {
+        console.log('IPN non vérifié par PayPal');
+        await logToWebhookAndConsole(
+          "🚨 Tentative IPN frauduleuse",
+          `IPN non vérifié par PayPal depuis ${clientIP}`,
+          [
+            { name: "IP", value: clientIP, inline: true },
+            { name: "Transaction ID", value: transactionId, inline: true },
+            { name: "Réponse PayPal", value: verification.data, inline: true }
+          ],
+          0xFF0000
+        );
+        return res.status(400).send('IPN non vérifié');
+      }
+      
+      console.log('IPN vérifié par PayPal avec succès');
+      
+      // Vérifier le statut du paiement
+      if (formData.payment_status === 'Completed') {
+        const success = await processSuccessfulPayment(formData, clientIP);
+        if (success) {
+          // Marquer la transaction comme traitée
+          processedTransactions.add(transactionId);
+          
+          // Nettoyer les anciennes transactions (garder seulement les 1000 dernières)
+          if (processedTransactions.size > 1000) {
+            const transactionsArray = Array.from(processedTransactions);
+            processedTransactions.clear();
+            transactionsArray.slice(-500).forEach(id => processedTransactions.add(id));
+          }
+        }
+      } else {
+        console.log(`Paiement non complété, statut: ${formData.payment_status}`);
+        await logToWebhookAndConsole(
+          "ℹ️ Paiement non complété",
+          `Paiement avec statut: ${formData.payment_status}`,
+          [
+            { name: "Transaction ID", value: transactionId, inline: true },
+            { name: "Statut", value: formData.payment_status, inline: true },
+            { name: "IP", value: clientIP, inline: true }
+          ],
+          0x3498db
+        );
+      }
+      
+      res.status(200).send('OK');
+    } catch (error) {
+      console.error('Erreur lors du traitement de l\'IPN:', error);
+      await logToWebhookAndConsole(
+        "❌ Erreur IPN",
+        `Erreur lors du traitement IPN: ${error.message}`,
+        [
+          { name: "IP", value: clientIP, inline: true },
+          { name: "Erreur", value: error.message.substring(0, 100), inline: true }
+        ],
+        0xFF0000
+      );
+      res.status(500).send('Erreur serveur');
+    }
+  }
+);
+
+// Route IPN alternative pour diagnostic avec bodyParser.urlencoded
+app.post('/api/paypal/ipn-alt', 
+  ipnSecurityMiddleware,
+  bodyParser.urlencoded({ extended: true }), 
+  async (req, res) => {
+    console.log('[IPN_ALT_HANDLER] Route alternative IPN activée');
+    const clientIP = req.ip || req.connection.remoteAddress;
+    console.log(`[IPN_ALT] Notification IPN PayPal reçue depuis ${clientIP}`);
+    
+    try {
+      console.log('[IPN_ALT_DEBUG] Type de req.body:', typeof req.body);
+      console.log('[IPN_ALT_DEBUG] Contenu de req.body:', req.body);
+      console.log('[IPN_ALT_DEBUG] Clés disponibles:', Object.keys(req.body));
+      
+      const formData = req.body;
+      
+      // Log détaillé pour debugging
+      console.log('[IPN_ALT] Données IPN reçues:', {
+        payment_status: formData.payment_status,
+        txn_id: formData.txn_id,
+        custom: formData.custom,
+        mc_gross: formData.mc_gross,
+        mc_currency: formData.mc_currency
+      });
+      
+      res.status(200).send('OK - Alternative route');
+    } catch (error) {
+      console.error('[IPN_ALT_ERROR] Erreur dans la route alternative:', error);
+      res.status(500).send('Erreur serveur');
+    }
+  }
+);
+
+// Route de test pour IPN (pour debugging uniquement)
+app.post('/api/paypal/ipn-test', 
+  (req, res) => {
+    console.log('\n=== TEST IPN ROUTE ===');
+    console.log('[TEST] Method:', req.method);
+    console.log('[TEST] Headers:', req.headers);
+    console.log('[TEST] Query:', req.query);
+    console.log('[TEST] Body:', req.body);
+    console.log('=== FIN TEST IPN ===\n');
+    res.status(200).send('TEST OK');
+  }
+);
+
+// Route de test avec différents parsers
+app.post('/api/paypal/ipn-test-raw', 
+  bodyParser.raw({ type: '*/*' }),
+  (req, res) => {
+    console.log('\n=== TEST RAW IPN ROUTE ===');
+    console.log('[TEST_RAW] Body type:', typeof req.body);
+    console.log('[TEST_RAW] Body content:', req.body);
+    console.log('[TEST_RAW] Body as string:', req.body.toString());
+    console.log('=== FIN TEST RAW IPN ===\n');
+    res.status(200).send('TEST RAW OK');
+  }
+);
+
+// Démarrage du serveur Express
+const PORT = process.env.PORT || config.webserver.port || 3000;
+server.listen(PORT, () => {
+  console.log(`Serveur web démarré sur le port ${PORT}`);
+  console.log(`URL: ${config.webserver.baseUrl}`);
+});
+
+// Connexion du bot Discord
+client.login(config.token).catch(console.error);
+
+// Gestion des erreurs non capturées
+process.on('unhandledRejection', (reason, promise) => {
+  console.log('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.log('Uncaught Exception:', error);
+});
+
+// Handler for successful PayPal payments
+async function processSuccessfulPayment(formData, clientIP) {
+  try {
+    const custom = formData.custom;
+    const guildId = custom.startsWith('guild_') ? custom.split('_')[1] : custom;
+    if (!client.premiumGuilds.includes(guildId)) {
+      client.premiumGuilds.push(guildId);
+      savePremiumList();
+      await logToWebhookAndConsole(
+        '🟢 Premium activé',
+        `Serveur **${guildId}** activé en premium via IPN (${clientIP})`,
+        [],
+        0x57F287
+      );
+    }
+    return true;
+  } catch (e) {
+    console.error('Erreur in processSuccessfulPayment:', e);
+    return false;
+  }
+}
+
+app.get('/payment-success', isAuthenticated, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'payment-success.html'));
+});
+// Route pour paiement annulé
+app.get('/payment-cancel', isAuthenticated, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'payment-cancel.html'));
+});
+// Route pour token déjà utilisé
+app.get('/token-used', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'token-used.html'));
+});

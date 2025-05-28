@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyForm - Passer en Premium</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .premium-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 2rem;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            border-radius: 10px;
+            color: white;
+        }
+        .premium-header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .premium-header .crown {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        .guild-info {
+            background-color: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            border-left: 4px solid #5865F2;
+        }
+        .guild-info h2 {
+            margin-top: 0;
+            color: #5865F2;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+        .feature {
+            background-color: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        .feature:hover {
+            border-color: #FFD700;
+            transform: translateY(-5px);
+        }
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        .pricing {
+            background: linear-gradient(135deg, #5865F2, #4752C4);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            text-align: center;
+            margin: 2rem 0;
+        }
+        .price {
+            font-size: 3rem;
+            font-weight: bold;
+            margin: 1rem 0;
+        }
+        .price-subtitle {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        .paypal-container {
+            text-align: center;
+            margin: 2rem 0;
+        }
+        .paypal-form {
+            display: inline-block; /* Modifié pour s'assurer qu'il est bien centré */
+            width: 100%; /* S'assure que le formulaire prend toute la largeur disponible pour le centrage */
+            max-width: 300px; /* Limite la largeur maximale du bouton pour une meilleure apparence */
+        }
+        .paypal-button {
+            background-color: #0070ba;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            width: 100%; /* Prend toute la largeur du conteneur */
+        }
+        .paypal-button:hover {
+            background-color: #005ea6;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 2rem;
+            color: #5865F2;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .back-link:before {
+            content: '← ';
+        }
+        .security-info {
+            background-color: #e8f5e8;
+            border: 1px solid #4caf50;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(88, 101, 242, 0.3);
+            border-radius: 50%;
+            border-top-color: #5865F2;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 1rem;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="premium-header">
+            <div class="crown">👑</div>
+            <h1>MyForm Premium</h1>
+            <p>Débloquez le potentiel complet de votre serveur</p>
+        </div>
+
+        <div class="guild-info">
+            <h2 id="guildName">Chargement...</h2>
+            <p>Vous allez passer ce serveur en Premium pour bénéficier de toutes les fonctionnalités avancées.</p>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature">
+                <div class="feature-icon">🔓</div>
+                <h3>Formulaires illimités</h3>
+                <p>Créez autant de formulaires que vous le souhaitez sur votre serveur</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">⚡</div>
+                <h3>Fonctionnalités avancées</h3>
+                <p>Accédez aux futures fonctionnalités premium en avant-première</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🎨</div>
+                <h3>Badge Premium</h3>
+                <p>Votre serveur affichera un badge premium dans le tableau de bord</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">💎</div>
+                <h3>Formulaires illimités</h3>
+                <p>Créez autant de formulaires que vous le souhaitez sur votre serveur.</p>
+            </div>
+        </div>
+
+        <div class="pricing">
+            <h2>Tarification simple</h2>
+            <div class="price">3,99 €</div>
+            <div class="price-subtitle">Paiement unique par serveur - Premium à vie</div>
+        </div>
+
+        <div class="security-info">
+            🔒 <strong>Paiement sécurisé</strong> - Vos données de paiement sont traitées de manière sécurisée par PayPal. Nous ne stockons aucune information de carte de crédit.
+        </div>
+
+        <div class="paypal-container">
+            <div class="loading" id="loading">
+                <div class="loading-spinner"></div>
+                <p>Préparation du paiement...</p>
+            </div>
+            
+            <form class="paypal-form" id="paypalForm" method="post" action="" target="_blank">
+                <input type="hidden" name="cmd" value="_xclick">
+                <input type="hidden" name="business" id="paypalEmail" value="">
+                <input type="hidden" name="item_name" id="itemName" value="">
+                <input type="hidden" name="amount" id="amount" value="">
+                <input type="hidden" name="currency_code" id="currency" value="">
+                <input type="hidden" name="custom" id="custom" value="">
+                <input type="hidden" name="notify_url" id="notifyUrl" value="">
+                <input type="hidden" name="return" id="returnUrl" value="">
+                <input type="hidden" name="cancel_return" id="cancelUrl" value="">
+                <input type="hidden" name="no_note" value="1">
+                <input type="hidden" name="no_shipping" value="1">
+                <button type="submit" class="paypal-button">
+                    💳 Payer avec PayPal - 3,99 €
+                </button>
+            </form>
+        </div>
+
+        <a href="/dashboard" class="back-link">Retour au tableau de bord</a>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const guildId = urlParams.get('guild');
+            
+            if (!guildId) {
+                alert('ID du serveur manquant');
+                window.location.href = '/dashboard';
+                return;
+            }
+
+            try {
+                // Charger les informations de paiement
+                const response = await fetch(`/api/payment/info/${guildId}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert(data.error);
+                    window.location.href = '/dashboard';
+                    return;
+                }
+
+                // Vérifier si déjà premium
+                if (data.isPremium) {
+                    alert('Ce serveur est déjà premium !');
+                    window.location.href = '/dashboard';
+                    return;
+                }
+
+                // Mettre à jour les informations de la page
+                document.getElementById('guildName').textContent = data.guildName;
+                
+                // Configurer le formulaire PayPal
+                const form = document.getElementById('paypalForm');
+                form.action = data.paypalUrl;
+                document.getElementById('paypalEmail').value = data.paypalEmail;
+                document.getElementById('itemName').value = `MyForm Premium - ${data.guildName}`;
+                document.getElementById('amount').value = data.price;
+                document.getElementById('currency').value = data.currency;
+                document.getElementById('custom').value = `guild_${guildId}`;
+                document.getElementById('notifyUrl').value = data.notifyUrl;
+                document.getElementById('returnUrl').value = data.returnUrl;
+                document.getElementById('cancelUrl').value = data.cancelUrl;
+
+                // Masquer le loading et afficher le formulaire
+                document.getElementById('loading').style.display = 'none';
+                form.style.display = 'inline-block';
+
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('Erreur lors du chargement des informations de paiement');
+                window.location.href = '/dashboard';
+            }
+        });
+    </script>
+</body>
+</html>
