@@ -235,6 +235,18 @@ function saveGiftCodes() {
   }
 }
 
+// Fonction pour recharger les codes cadeaux depuis le fichier
+function reloadGiftCodes() {
+  try {
+    if (fs.existsSync(giftCodesPath)) {
+      giftCodes = fs.readJsonSync(giftCodesPath);
+      console.log(`Codes cadeaux rechargés: ${Object.keys(giftCodes).length} codes`);
+    }
+  } catch (error) {
+    console.error('Erreur lors du rechargement des codes cadeaux:', error);
+  }
+}
+
 // Fonction pour générer un code cadeau aléatoire
 function generateGiftCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -2168,12 +2180,18 @@ app.post('/api/gift-code/redeem', isAuthenticated, async (req, res) => {
   
   if (!giftCode || !guildId) {
     return res.status(400).json({ error: 'Code cadeau et ID du serveur requis' });
-  }
-  
-  try {
+  }  try {
+    // Recharger les codes cadeaux depuis le fichier pour avoir la version la plus récente
+    reloadGiftCodes();
+    
+    // Normaliser le code (supprimer les espaces et mettre en majuscules)
+    const normalizedCode = giftCode.trim().toUpperCase();
+    
     // Vérifier si le code existe et n'est pas utilisé
-    const code = giftCodes[giftCode.toUpperCase()];
+    const code = giftCodes[normalizedCode];
     if (!code) {
+      console.log(`Code non trouvé: ${normalizedCode}`);
+      console.log('Codes disponibles:', Object.keys(giftCodes));
       return res.status(404).json({ error: 'Code cadeau invalide' });
     }
     
@@ -2215,12 +2233,11 @@ app.post('/api/gift-code/redeem', isAuthenticated, async (req, res) => {
     } catch (permError) {
       return res.status(500).json({ error: 'Erreur lors de la vérification des permissions' });
     }
-    
-    // Marquer le code comme utilisé
-    code.used = true;
-    code.usedBy = req.session.user.id;
-    code.usedAt = new Date().toISOString();
-    code.guildId = guildId;
+      // Marquer le code comme utilisé
+    giftCodes[normalizedCode].used = true;
+    giftCodes[normalizedCode].usedBy = req.session.user.id;
+    giftCodes[normalizedCode].usedAt = new Date().toISOString();
+    giftCodes[normalizedCode].guildId = guildId;
     
     // Ajouter le serveur à la liste premium
     client.premiumGuilds.push(guildId);
