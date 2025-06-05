@@ -64,7 +64,24 @@ setInterval(() => {
       aiRateLimit.delete(userId);
     }
   }
-}, 60 * 60 * 1000); // Nettoyer toutes les heures
+}, 60 * 60 * 1000);
+
+// Fonction utilitaire pour formater la durée du cooldown
+function formatCooldownDuration(totalMinutes) {
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+  
+  const parts = [];
+  if (days > 0) parts.push(`${days} jour${days > 1 ? 's' : ''}`);
+  if (hours > 0) parts.push(`${hours} heure${hours > 1 ? 's' : ''}`);
+  if (minutes > 0) parts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
+  
+  if (parts.length === 0) return '1 minute';
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2) return parts.join(' et ');
+  return parts.slice(0, -1).join(', ') + ' et ' + parts[parts.length - 1];
+}// Nettoyer toutes les heures
 
 // Fonction utilitaire pour envoyer des logs au webhook Discord et dans la console
 async function logToWebhookAndConsole(title, description, fields = [], color = 0x3498db) {
@@ -99,6 +116,9 @@ const formsPath = './forms.json';
 let forms = fs.existsSync(formsPath) ? fs.readJsonSync(formsPath) : {};
 client.forms = forms;
 client.formsPath = formsPath;
+
+const cooldownPath = './cooldown.json';
+client.cooldownPath = cooldownPath;
 
 // Chemin du fichier premium (utilisation de chemin absolu)
 const premiumPath = path.join(__dirname, 'premium.json');
@@ -217,6 +237,35 @@ function loadPremiumList() {
   }
 }
 
+// Fonction pour nettoyer les anciens timestamps de cooldown
+function cleanupOldCooldowns() {
+  try {
+    if (!fs.existsSync(client.cooldownPath)) {
+      return;
+    }
+    
+    const cooldownData = fs.readJsonSync(client.cooldownPath);
+    const now = Date.now();
+    const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 jours en millisecondes
+    let cleaned = 0;
+    
+    // Supprimer les entrées plus anciennes que 7 jours
+    Object.keys(cooldownData).forEach(key => {
+      if (now - cooldownData[key] > maxAge) {
+        delete cooldownData[key];
+        cleaned++;
+      }
+    });
+    
+    if (cleaned > 0) {
+      fs.writeJsonSync(client.cooldownPath, cooldownData, { spaces: 2 });
+      console.log(`Nettoyage des cooldowns: ${cleaned} entrées supprimées`);
+    }
+  } catch (error) {
+    console.log('Erreur lors du nettoyage des cooldowns:', error);
+  }
+}
+
 // Charger la liste des guildes premium
 loadPremiumList();
 
@@ -263,12 +312,8 @@ const botStatuses = [
   { type: 'Playing', name: '📝 Créer des formulaires' },
   { type: 'Watching', name: '📊 Les réponses arriver' },
   { type: 'Listening', name: '💬 Vos commandes' },
-  { type: 'Playing', name: '🎯 Collecter des données' },
   { type: 'Watching', name: '⚙️ Les configurations' },
   { type: 'Playing', name: '🤖 Assistant IA intégré' },
-  { type: 'Listening', name: '📢 Les notifications' },
-  { type: 'Playing', name: '🔒 Modération avancée' },
-  { type: 'Watching', name: '📈 Les statistiques' },
   { type: 'Playing', name: '💎 Premium disponible' }
 ];
 
@@ -441,6 +486,35 @@ client.on(Events.InteractionCreate, async interaction => {
         content: 'Vous avez déjà répondu à ce formulaire. Vous ne pouvez pas répondre à nouveau.', 
         ephemeral: true 
       });
+    }
+
+    // Vérifier le cooldown si activé et serveur premium
+    if (form.cooldownOptions && form.cooldownOptions.enabled && client.premiumGuilds.includes(interaction.guildId)) {
+      try {
+        let cooldownData = {};
+        if (fs.existsSync(client.cooldownPath)) {
+          cooldownData = fs.readJsonSync(client.cooldownPath);
+        }
+        const userKey = `${interaction.guildId}_${formId}_${interaction.user.id}`;
+        const last = cooldownData[userKey];        if (last) {
+          const durationMs = (form.cooldownOptions.duration || 60) * 60 * 1000;
+          const remaining = last + durationMs - Date.now();
+          if (remaining > 0) {
+            const mins = Math.ceil(remaining / 60000);
+            const timeTxt = formatCooldownDuration(mins);
+            return interaction.reply({ 
+              content: `Vous devez attendre encore ${timeTxt} avant de pouvoir répondre à nouveau à ce formulaire.`, 
+              ephemeral: true 
+            });
+          }
+        }
+      } catch (error) {
+        console.log('Erreur lors de la vérification du cooldown (bouton):', error);
+        return interaction.reply({
+          content: 'Une erreur est survenue lors de la vérification de votre statut de cooldown. Veuillez réessayer.',
+          ephemeral: true
+        });
+      }
     }
 
     // Si le formulaire contient plus de 5 questions, on utilise la pagination
@@ -860,6 +934,35 @@ client.on(Events.InteractionCreate, async interaction => {
         });
       }
       
+      // Vérifier le cooldown si activé et serveur premium
+      if (form.cooldownOptions && form.cooldownOptions.enabled && client.premiumGuilds.includes(interaction.guildId)) {
+        try {
+          let cooldownData = {};
+          if (fs.existsSync(client.cooldownPath)) {
+            cooldownData = fs.readJsonSync(client.cooldownPath);
+          }
+          const userKey = `${interaction.guildId}_${formId}_${interaction.user.id}`;
+          const last = cooldownData[userKey];
+          if (last) {
+            const durationMs = (form.cooldownOptions.duration || 60) * 60 * 1000;
+            const remaining = last + durationMs - Date.now();
+            if (remaining > 0) {
+              const mins = Math.ceil(remaining / 60000);
+              const timeTxt = formatCooldownDuration(mins);              return interaction.reply({ 
+                content: `Vous devez attendre encore ${timeTxt} avant de pouvoir répondre à nouveau à ce formulaire.`, 
+                ephemeral: true 
+              });
+            }
+          }
+        } catch (error) {
+          console.log('Erreur lors de la vérification du cooldown:', error);
+          return interaction.reply({
+            content: 'Une erreur est survenue lors de la vérification de votre statut de cooldown. Veuillez réessayer.',
+            ephemeral: true
+          });
+        }
+      }
+      
       // Vérifier le nombre de questions et avertir si > 5
       if (form.questions.length > 5) {
         return interaction.reply({ 
@@ -1025,8 +1128,7 @@ client.on(Events.InteractionCreate, async interaction => {
       fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
       client.formBuilders.delete(interaction.user.id);
       await interaction.reply({ content: 'Formulaire créé !', ephemeral: true });
-    } 
-    else if (interaction.customId.startsWith('fill_')) {
+    }    else if (interaction.customId.startsWith('fill_')) {
       const formId = interaction.customId.split('_')[1];
       const form = client.forms[interaction.guildId]?.[formId];
       if (!form) return interaction.reply({ content: 'Formulaire introuvable.', ephemeral: true });
@@ -1037,6 +1139,34 @@ client.on(Events.InteractionCreate, async interaction => {
           content: 'Vous avez déjà répondu à ce formulaire. Vous ne pouvez pas répondre à nouveau.', 
           ephemeral: true 
         });
+      }
+        // Vérifier le cooldown si activé et serveur premium
+      if (form.cooldownOptions && form.cooldownOptions.enabled && client.premiumGuilds.includes(interaction.guildId)) {
+        try {
+          let cooldownData = {};
+          if (fs.existsSync(client.cooldownPath)) {
+            cooldownData = fs.readJsonSync(client.cooldownPath);
+          }
+          const userKey = `${interaction.guildId}_${formId}_${interaction.user.id}`;
+          const last = cooldownData[userKey];
+          if (last) {
+            const durationMs = (form.cooldownOptions.duration || 60) * 60 * 1000;
+            const remaining = last + durationMs - Date.now();
+            if (remaining > 0) {
+              const mins = Math.ceil(remaining / 60000);
+              const timeTxt = formatCooldownDuration(mins);              return interaction.reply({ 
+                content: `Vous devez attendre encore ${timeTxt} avant de pouvoir répondre à nouveau à ce formulaire.`, 
+                ephemeral: true 
+              });
+            }
+          }
+        } catch (error) {
+          console.log('Erreur lors de la vérification du cooldown:', error);
+          return interaction.reply({
+            content: 'Une erreur est survenue lors de la vérification de votre statut de cooldown. Veuillez réessayer.',
+            ephemeral: true
+          });
+        }
       }
       
       // Vérifier le nombre de questions et avertir si > 5
@@ -1187,6 +1317,23 @@ client.on(Events.InteractionCreate, async interaction => {
           ],
           0x57F287 // Couleur verte
         );
+
+        // Enregistrer le timestamp pour le cooldown si activé et serveur premium
+        if (form.cooldownOptions && form.cooldownOptions.enabled && client.premiumGuilds.includes(interaction.guildId)) {
+          try {
+            let cooldownData = {};
+            if (fs.existsSync(client.cooldownPath)) {
+              cooldownData = fs.readJsonSync(client.cooldownPath);
+            }
+
+            const userCooldownKey = `${interaction.guildId}_${formId}_${interaction.user.id}`;
+            cooldownData[userCooldownKey] = Date.now();
+
+            fs.writeJsonSync(client.cooldownPath, cooldownData, { spaces: 2 });
+          } catch (error) {
+            console.log('Erreur lors de l\'enregistrement du cooldown:', error);
+          }
+        }
         
         await interaction.reply({ content: 'Merci pour vos réponses ! Le formulaire est maintenant complété.', ephemeral: true });
       } else {
@@ -1220,8 +1367,7 @@ client.on(Events.InteractionCreate, async interaction => {
     const formId = interaction.customId.split('_')[2];
     const form = client.forms[interaction.guildId]?.[formId];
     if (!form) return interaction.reply({ content: 'Formulaire introuvable.', ephemeral: true });
-    
-    // Vérifier si l'utilisateur a déjà répondu (si singleResponse est activé)
+      // Vérifier si l'utilisateur a déjà répondu (si singleResponse est activé)
     if (form.singleResponse && form.respondents && form.respondents[interaction.user.id]) {
       // Log de tentative de réponse multiple
       await logToWebhookAndConsole(
@@ -1238,10 +1384,40 @@ client.on(Events.InteractionCreate, async interaction => {
       return interaction.reply({ 
         content: 'Vous avez déjà répondu à ce formulaire. Vous ne pouvez pas répondre à nouveau.', 
         ephemeral: true 
-      });
+      });    }
+
+    // Vérifier le cooldown si activé et serveur premium
+    if (form.cooldownOptions && form.cooldownOptions.enabled && client.premiumGuilds.includes(interaction.guildId)) {
+      try {
+        let cooldownData = {};
+        if (fs.existsSync(client.cooldownPath)) {
+          cooldownData = fs.readJsonSync(client.cooldownPath);
+        }
+        const userKey = `${interaction.guildId}_${formId}_${interaction.user.id}`;
+        const last = cooldownData[userKey];
+        if (last) {
+          const durationMs = (form.cooldownOptions.duration || 60) * 60 * 1000;
+          const remaining = last + durationMs - Date.now();
+          if (remaining > 0) {
+            const mins = Math.ceil(remaining / 60000);
+            const timeTxt = formatCooldownDuration(mins);            return interaction.reply({ 
+              content: `Vous devez attendre encore ${timeTxt} avant de pouvoir répondre à nouveau à ce formulaire.`, 
+              ephemeral: true 
+            });
+          }
+        }
+      } catch (error) {
+        console.log('Erreur lors de la vérification du cooldown (modal submit):', error);
+        return interaction.reply({
+          content: 'Une erreur est survenue lors de la vérification de votre statut de cooldown. Veuillez réessayer.',
+          ephemeral: true
+        });
+      }
     }
-    
+
     const answers = form.questions.map((_, i) => interaction.fields.getTextInputValue(`answer_${i}`));
+    
+    // Créer l'embed avec toutes les réponses
     const resultEmbed = new EmbedBuilder()
       .setTitle('Nouvelles réponses')
       .setAuthor({ name: `${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL() })
@@ -1289,8 +1465,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const row = new ActionRowBuilder().addComponents(buttons);
       await sent.edit({ components: [row] });
     }
-    
-    // Marquer l'utilisateur comme ayant répondu
+      // Marquer l'utilisateur comme ayant répondu
     if (form.singleResponse) {
       form.respondents = form.respondents || {};
       form.respondents[interaction.user.id] = {
@@ -1298,6 +1473,23 @@ client.on(Events.InteractionCreate, async interaction => {
         messageId: messageId
       };
       fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
+    }
+
+    // Enregistrer le timestamp pour le cooldown si activé et serveur premium
+    if (form.cooldownOptions && form.cooldownOptions.enabled && client.premiumGuilds.includes(interaction.guildId)) {
+      try {
+        let cooldownData = {};
+        if (fs.existsSync(client.cooldownPath)) {
+          cooldownData = fs.readJsonSync(client.cooldownPath);
+        }        // Utiliser la même clé que lors de la vérification (formId du modal)
+        const cFormId = formId; 
+        const userCooldownKey = `${interaction.guildId}_${cFormId}_${interaction.user.id}`;
+        cooldownData[userCooldownKey] = Date.now();
+
+        fs.writeJsonSync(client.cooldownPath, cooldownData, { spaces: 2 });
+      } catch (error) {
+        console.log('Erreur lors de l\'enregistrement du cooldown:', error);
+      }
     }
 
     // Log de soumission de formulaire
@@ -1642,7 +1834,7 @@ app.get('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, (req,
     embedChannelId: '',
     responseChannelId: '',
     embedText: '',
-    buttonLabel: 'Répondre',
+    buttonLabel: '',
     singleResponse: false,
     reviewOptions: { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' }
   };
@@ -1837,8 +2029,7 @@ app.post('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, asyn
     
     // Stocker l'ancien formulaire pour les logs
     const oldForm = client.forms[guildId][finalFormId] ? {...client.forms[guildId][finalFormId]} : null;
-    
-    // Sauvegarder le formulaire
+      // Sauvegarder le formulaire
     client.forms[guildId][finalFormId] = {
       title: updatedForm.title,
       questions: updatedForm.questions,
@@ -1847,6 +2038,7 @@ app.post('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, asyn
       embedText: updatedForm.embedText,
       buttonLabel: updatedForm.buttonLabel,
       singleResponse: updatedForm.singleResponse || false,
+      cooldownOptions: updatedForm.cooldownOptions || { enabled: false, duration: 60 },
       reviewOptions: updatedForm.reviewOptions || { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' },
       embedMessageId: existingMessageId,
       respondents: formId && client.forms[guildId][finalFormId]?.respondents ? 
@@ -1950,8 +2142,7 @@ app.post('/api/form/:guildId', isAuthenticated, hasGuildPermission, async (req, 
     // Préparation pour sauvegarder dans client.forms
     client.forms[guildId] = client.forms[guildId] || {};
     const finalFormId = Date.now().toString();
-    
-    // Sauvegarder le formulaire
+      // Sauvegarder le formulaire
     client.forms[guildId][finalFormId] = {
       title: updatedForm.title,
       questions: updatedForm.questions,
@@ -1960,6 +2151,7 @@ app.post('/api/form/:guildId', isAuthenticated, hasGuildPermission, async (req, 
       embedText: updatedForm.embedText,
       buttonLabel: updatedForm.buttonLabel,
       singleResponse: updatedForm.singleResponse || false,
+      cooldownOptions: updatedForm.cooldownOptions || { enabled: false, duration: 60 },
       reviewOptions: updatedForm.reviewOptions || { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' },
       embedMessageId: null,
       respondents: {}
@@ -2641,10 +2833,15 @@ app.post('/api/paypal/ipn-test-raw',
 
 // Démarrage du serveur Express
 const PORT = process.env.PORT || config.webserver.port || 3000;
-server.listen(PORT, () => {
-  console.log(`Serveur web démarré sur le port ${PORT}`);
+server.listen(PORT, () => {  console.log(`Serveur web démarré sur le port ${PORT}`);
   console.log(`URL: ${config.webserver.baseUrl}`);
 });
+
+// Nettoyage initial des cooldowns
+cleanupOldCooldowns();
+
+// Nettoyer les cooldowns tous les jours
+setInterval(cleanupOldCooldowns, 24 * 60 * 60 * 1000);
 
 // Connexion du bot Discord
 client.login(config.token).catch(console.error);

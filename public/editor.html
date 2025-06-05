@@ -422,6 +422,30 @@
             <label for="singleResponse">Limiter à une seule réponse par utilisateur (avec possibilité de supprimer sa réponse)</label>
         </div>
         <div class="form-group checkbox-group">
+            <input type="checkbox" id="cooldownEnabled">
+            <label for="cooldownEnabled">Mettre un cooldown entre chaque réponse <span class="premium-badge">Premium</span></label>
+        </div>
+        <div id="cooldownOptionsContainer" class="hidden">
+            <div class="form-group">
+                <label>Durée du cooldown</label>
+                <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 0.25rem;">
+                        <input type="number" id="cooldownDays" min="0" max="7" value="0" placeholder="0" style="width: 60px;">
+                        <label for="cooldownDays" style="font-weight: normal; margin: 0;">jour(s)</label>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.25rem;">
+                        <input type="number" id="cooldownHours" min="0" max="23" value="1" placeholder="1" style="width: 60px;">
+                        <label for="cooldownHours" style="font-weight: normal; margin: 0;">heure(s)</label>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.25rem;">
+                        <input type="number" id="cooldownMinutes" min="0" max="59" value="0" placeholder="0" style="width: 60px;">
+                        <label for="cooldownMinutes" style="font-weight: normal; margin: 0;">minute(s)</label>
+                    </div>
+                </div>
+                <small style="color: #666;">Maximum : 7 jours. Au moins 1 minute doit être définie.</small>
+            </div>
+        </div>
+        <div class="form-group checkbox-group">
             <input type="checkbox" id="reviewEnabled">
             <label for="reviewEnabled">Activer la revue (Accepter/Refuser)</label>
         </div>
@@ -535,6 +559,11 @@
             const buttonLabelInput = document.getElementById('buttonLabel');
             const alertBox = document.getElementById('alertBox');
             const singleResponseCheckbox = document.getElementById('singleResponse');
+            const cooldownEnabledCheckbox = document.getElementById('cooldownEnabled');
+            const cooldownOptionsContainer = document.getElementById('cooldownOptionsContainer');
+            const cooldownDaysInput = document.getElementById('cooldownDays');
+            const cooldownHoursInput = document.getElementById('cooldownHours');
+            const cooldownMinutesInput = document.getElementById('cooldownMinutes');
             const reviewEnabledCheckbox = document.getElementById('reviewEnabled');
             const reviewOptionsContainer = document.getElementById('reviewOptionsContainer');
             const customMessagesEnabledCheckbox = document.getElementById('customMessagesEnabled');
@@ -569,6 +598,76 @@
                 setTimeout(() => {
                     alertBox.classList.add('hidden');
                 }, 5000);
+            }
+            
+            // Fonctions utilitaires pour la conversion du cooldown
+            function convertToTotalMinutes(days, hours, minutes) {
+                return (days * 24 * 60) + (hours * 60) + minutes;
+            }
+            
+            function convertFromTotalMinutes(totalMinutes) {
+                const days = Math.floor(totalMinutes / (24 * 60));
+                const remainingAfterDays = totalMinutes % (24 * 60);
+                const hours = Math.floor(remainingAfterDays / 60);
+                const minutes = remainingAfterDays % 60;
+                return { days, hours, minutes };
+            }
+            
+            function validateCooldownInputs() {
+                const days = parseInt(cooldownDaysInput.value) || 0;
+                const hours = parseInt(cooldownHoursInput.value) || 0;
+                const minutes = parseInt(cooldownMinutesInput.value) || 0;
+                const totalMinutes = convertToTotalMinutes(days, hours, minutes);
+                
+                // Vérifier que au moins 1 minute est définie
+                if (totalMinutes < 1) {
+                    return { valid: false, error: 'La durée du cooldown doit être d\'au moins 1 minute' };
+                }
+                
+                // Vérifier que la durée ne dépasse pas 7 jours (10080 minutes)
+                if (totalMinutes > 10080) {
+                    return { valid: false, error: 'La durée du cooldown ne peut pas dépasser 7 jours' };
+                }
+                
+                return { valid: true, totalMinutes };
+            }
+            
+            // Fonction pour afficher la durée formatée dans les messages d'erreur
+            function formatDurationForError(totalMinutes) {
+                const { days, hours, minutes } = convertFromTotalMinutes(totalMinutes);
+                const parts = [];
+                
+                if (days > 0) parts.push(`${days} jour${days > 1 ? 's' : ''}`);
+                if (hours > 0) parts.push(`${hours} heure${hours > 1 ? 's' : ''}`);
+                if (minutes > 0) parts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
+                
+                if (parts.length === 0) return '0 minute';
+                if (parts.length === 1) return parts[0];
+                if (parts.length === 2) return parts.join(' et ');
+                return parts.slice(0, -1).join(', ') + ' et ' + parts[parts.length - 1];
+            }
+            
+            // Mettre à jour les limites des champs en fonction des autres valeurs
+            function updateCooldownLimits() {
+                const days = parseInt(cooldownDaysInput.value) || 0;
+                const hours = parseInt(cooldownHoursInput.value) || 0;
+                const minutes = parseInt(cooldownMinutesInput.value) || 0;
+                
+                // Si on a déjà 7 jours, désactiver les autres champs
+                if (days >= 7) {
+                    cooldownHoursInput.max = 0;
+                    cooldownMinutesInput.max = 0;
+                    cooldownHoursInput.value = 0;
+                    cooldownMinutesInput.value = 0;
+                } else if (days === 6 && hours >= 24) {
+                    // Cas limite proche de 7 jours
+                    cooldownHoursInput.max = 23;
+                    cooldownMinutesInput.max = 59;
+                } else {
+                    // Remettre les limites normales
+                    cooldownHoursInput.max = 23;
+                    cooldownMinutesInput.max = 59;
+                }
             }
             const MAX_QUESTIONS = 25;
 
@@ -621,13 +720,19 @@
                     // Stocker le statut premium
                     isPremium = data.isPremium;
                     
-                    // Toujours afficher la section IA (pour tous les utilisateurs)
-                    aiGenerationSection.classList.remove('hidden');
-                    
-                    // Changer le texte du bouton si non premium
+                    // Gérer les fonctionnalités premium
                     if (!isPremium) {
+                        // Désactiver la checkbox de cooldown pour les non-premium
+                        cooldownEnabledCheckbox.disabled = true;
+                        cooldownEnabledCheckbox.checked = false;
+                        cooldownOptionsContainer.classList.add('hidden');
+                        
+                        // Changer le texte du bouton IA
                         btnGenerateAI.innerHTML = '<span class="crown">👑</span> Générer par IA <span class="premium-badge">Premium</span>';
                     }
+                    
+                    // Toujours afficher la section IA (pour tous les utilisateurs)
+                    aiGenerationSection.classList.remove('hidden');
                     
                     // Afficher les informations de l'utilisateur
                     if (data.user) {
@@ -649,6 +754,21 @@
                     embedTextInput.value = data.form.embedText || '';
                     buttonLabelInput.value = data.form.buttonLabel || 'Répondre';
                     singleResponseCheckbox.checked = data.form.singleResponse || false;
+                    
+                    // Initialiser les options de cooldown
+                    if (data.form.cooldownOptions && isPremium) {
+                        cooldownEnabledCheckbox.checked = data.form.cooldownOptions.enabled || false;
+                        
+                        // Convertir les minutes totales en jours/heures/minutes
+                        const totalMinutes = data.form.cooldownOptions.duration || 60;
+                        const { days, hours, minutes } = convertFromTotalMinutes(totalMinutes);
+                        cooldownDaysInput.value = days;
+                        cooldownHoursInput.value = hours;
+                        cooldownMinutesInput.value = minutes;
+                        
+                        cooldownOptionsContainer.classList.toggle('hidden', !data.form.cooldownOptions.enabled);
+                        updateCooldownLimits(); // Mettre à jour les limites après le chargement
+                    }
                     
                     // Initialiser les options de revue
                     if (data.form.reviewOptions) {
@@ -738,6 +858,16 @@
                         };
                     });
                     
+                    // Valider et calculer la durée du cooldown
+                    let cooldownDuration = 60; // valeur par défaut
+                    if (cooldownEnabledCheckbox.checked && isPremium) {
+                        const cooldownValidation = validateCooldownInputs();
+                        if (!cooldownValidation.valid) {
+                            throw new Error(cooldownValidation.error);
+                        }
+                        cooldownDuration = cooldownValidation.totalMinutes;
+                    }
+                    
                     // Construire l'objet formulaire
                     const formData = {
                         title: formTitleInput.value,
@@ -747,6 +877,10 @@
                         embedText: embedTextInput.value,
                         buttonLabel: buttonLabelInput.value,
                         singleResponse: singleResponseCheckbox.checked,
+                        cooldownOptions: {
+                            enabled: cooldownEnabledCheckbox.checked && isPremium,
+                            duration: cooldownDuration
+                        },
                         reviewOptions: {
                             enabled: reviewEnabledCheckbox.checked,
                             customMessagesEnabled: customMessagesEnabledCheckbox.checked,
@@ -821,6 +955,11 @@
             btnAddQuestion.addEventListener('click', () => addQuestion());
             
             btnSave.addEventListener('click', saveForm);
+            
+            // Ajouter les event listeners pour les champs de cooldown
+            cooldownDaysInput.addEventListener('input', updateCooldownLimits);
+            cooldownHoursInput.addEventListener('input', updateCooldownLimits);
+            cooldownMinutesInput.addEventListener('input', updateCooldownLimits);
             
             // Event listeners pour l'IA
             btnGenerateAI.addEventListener('click', function() {
@@ -938,6 +1077,31 @@
             
             reviewEnabledCheckbox.addEventListener('change', () => {
                 reviewOptionsContainer.classList.toggle('hidden', !reviewEnabledCheckbox.checked);
+            });
+            
+            // Gérer l'affichage des options de cooldown
+            cooldownEnabledCheckbox.addEventListener('change', () => {
+                cooldownOptionsContainer.classList.toggle('hidden', !cooldownEnabledCheckbox.checked);
+                if (cooldownEnabledCheckbox.checked) {
+                    // Masquer l’option singleResponse
+                    singleResponseCheckbox.checked = false;
+                    singleResponseGroup.classList.add('hidden');
+                } else {
+                    // Réafficher singleResponse
+                    singleResponseGroup.classList.remove('hidden');
+                }
+            });
+            
+            // Désactiver cooldown si singleResponse est activé
+            singleResponseCheckbox.addEventListener('change', () => {
+                if (singleResponseCheckbox.checked) {
+                    // Masquer l’option cooldown
+                    cooldownEnabledCheckbox.checked = false;
+                    cooldownOptionsContainer.classList.add('hidden');
+                    cooldownGroup.classList.add('hidden');
+                } else {
+                    cooldownGroup.classList.remove('hidden');
+                }
             });
             
             customMessagesEnabledCheckbox.addEventListener('change', () => {
