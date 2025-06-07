@@ -108,6 +108,7 @@
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             padding: 2rem;
             text-align: center;
+            position: relative;
         }
         .feature-icon {
             font-size: 3rem;
@@ -117,6 +118,43 @@
         .feature h2 {
             margin-top: 0;
             color: #5865F2;
+        }
+        .btn-premium {
+            display: inline-block;
+            padding: 12px 28px;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            box-shadow: 0 4px 12px rgba(255, 165, 0, 0.3);
+            border: none;
+            cursor: pointer;
+        }
+        .btn-premium:hover {
+            background: linear-gradient(135deg, #FFA500, #FF8C00);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(255, 165, 0, 0.4);
+        }
+        .premium-section {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: white;
+            padding: 3rem 2rem;
+            text-align: center;
+            margin: 3rem 0;
+            border-radius: 10px;
+        }
+        .premium-section h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .premium-section p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            opacity: 0.95;
         }
         .steps {
             background-color: white;
@@ -234,6 +272,21 @@
                 <div class="feature-icon">👥</div>
                 <h2>Attribution de rôles</h2>
                 <p>Attribuez automatiquement des rôles aux utilisateurs selon que leur réponse est acceptée ou refusée.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">⏰</div>
+                <h2>Système de cooldown</h2>
+                <p>Contrôlez la fréquence des réponses avec un système de délais personnalisables. Évitez le spam et gérez efficacement les candidatures répétées.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🚫</div>
+                <h2>Blacklist avancée</h2>
+                <p>Gérez une liste noire locale pour bloquer certains utilisateurs de vos formulaires</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔓</div>
+                <h2>Formulaires illimités</h2>
+                <p>Créez autant de formulaires que vous le souhaitez sur votre serveur sans aucune limitation. Organisez votre communauté à votre guise.</p>
             </div>
             <div class="feature">
                 <div class="feature-icon">📱</div>

@@ -51,7 +51,7 @@
         }
         .features-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 1.5rem;
             margin: 2rem 0;
         }
@@ -66,10 +66,16 @@
         .feature:hover {
             border-color: #FFD700;
             transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(255, 215, 0, 0.2);
         }
         .feature-icon {
             font-size: 2.5rem;
             margin-bottom: 1rem;
+        }
+        .feature h3 {
+            color: #5865F2;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
         }
         .pricing {
             background: linear-gradient(135deg, #5865F2, #4752C4);
@@ -278,27 +284,47 @@
             <div class="feature">
                 <div class="feature-icon">🔓</div>
                 <h3>Formulaires illimités</h3>
-                <p>Créez autant de formulaires que vous le souhaitez sur votre serveur</p>
+                <p>Créez autant de formulaires que vous le souhaitez sur votre serveur sans aucune limitation</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">⏰</div>
+                <h3>Système de cooldown</h3>
+                <p>Contrôlez la fréquence des réponses avec des délais personnalisables (minutes, heures, jours). Évitez le spam et gérez efficacement les candidatures répétées.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🚫</div>
+                <h3>Blacklist locale</h3>
+                <p>Gérez une liste noire personnalisée pour votre serveur. Bloquez localement certains utilisateurs de vos formulaires.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🧠</div>
+                <h3>IA GPT-4.1 complète</h3>
+                <p>Accès complet à l'intelligence artificielle GPT-4.1 pour générer des formulaires entiers. Décrivez votre objectif et l'IA créera automatiquement toutes les questions nécessaires.</p>
             </div>
             <div class="feature">
                 <div class="feature-icon">⚡</div>
-                <h3>Fonctionnalités avancées</h3>
-                <p>Accédez aux futures fonctionnalités premium en avant-première</p>
+                <h3>Fonctionnalités futures</h3>
+                <p>Accédez en avant-première à toutes les nouvelles fonctionnalités premium qui seront développées</p>
             </div>
             <div class="feature">
                 <div class="feature-icon">🎨</div>
                 <h3>Badge Premium</h3>
-                <p>Votre serveur affichera un badge premium dans le tableau de bord</p>
+                <p>Votre serveur affichera un badge premium distinctif dans le tableau de bord</p>
             </div>
             <div class="feature">
-                <div class="feature-icon">🤖</div>
-                <h3>Formulaires IA</h3>
-                <p>Générez des formulaires 100% par IA grâce à GPT-4.1. Décrivez simplement ce que vous voulez et l'IA créera automatiquement toutes les questions nécessaires.</p>
+                <div class="feature-icon">📊</div>
+                <h3>Statistiques avancées</h3>
+                <p>Obtenez des analyses détaillées sur l'utilisation de vos formulaires et les tendances de réponses (à venir)</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔧</div>
+                <h3>Options avancées</h3>
+                <p>Personnalisations poussées, intégrations tierces et outils de modération avancés (à venir)</p>
             </div>
         </div>
 
         <div class="pricing">
-            <h2>Tarification simple</h2>
+            <h2>Tarification simple et transparente</h2>
             <div class="price">3,99 €</div>
             <div class="price-subtitle">Paiement unique par serveur - Premium à vie</div>
         </div>
