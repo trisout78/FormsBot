@@ -18,9 +18,14 @@
     "sandbox": true,
     "price": "3.99",
     "currency": "EUR"
-  },  
+  },    
   "openai": {
     "apiKey": ""
+  },
+  "clarty": {
+    "enabled": false,
+    "apiKey": "",
+    "apiUrl": "https://openbl.clarty.org/api/v1"
   },
   "staff": [
     "637213291558469663"

@@ -107,6 +107,48 @@ async function logToWebhookAndConsole(title, description, fields = [], color = 0
   }
 }
 
+// Fonction pour vérifier si un utilisateur est blacklisté via l'API Clarty OpenBL
+async function checkClartyBlacklist(userId) {
+  // Si Clarty n'est pas activé dans la config, on laisse passer
+  if (!config.clarty || !config.clarty.enabled || !config.clarty.apiKey) {
+    return { isBlacklisted: false, error: null };
+  }
+
+  try {
+    const response = await axios.get(`${config.clarty.apiUrl}/user/${userId}`, {
+      headers: {
+        'Authorization': config.clarty.apiKey
+      },
+      timeout: 5000 // Timeout de 5 secondes
+    });
+
+    return {
+      isBlacklisted: response.data.isBlacklisted || false,
+      userData: response.data,
+      error: null
+    };
+  } catch (error) {
+    console.log(`Erreur lors de la vérification Clarty pour l'utilisateur ${userId}:`, error.message);
+    
+    // Notifier l'erreur par webhook
+    await logToWebhookAndConsole(
+      "⚠️ Erreur API Clarty OpenBL",
+      `Impossible de vérifier le statut de blacklist pour l'utilisateur.`,
+      [
+        { name: "Utilisateur ID", value: userId, inline: true },
+        { name: "Erreur", value: error.message, inline: false },
+        { name: "Action", value: "Connexion autorisée par défaut", inline: true }
+      ],
+      0xFFA500 // Orange pour les avertissements
+    );
+
+    return {
+      isBlacklisted: false,
+      error: error.message
+    };
+  }
+}
+
 // Configuration du client Discord
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const rest = new REST().setToken(config.token);
@@ -1709,6 +1751,11 @@ app.get('/error', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'error.html'));
 });
 
+// Route pour les utilisateurs blacklistés
+app.get('/blacklisted', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'blacklisted.html'));
+});
+
 // Route du tableau de bord
 app.get('/dashboard', isAuthenticated, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
@@ -1749,20 +1796,65 @@ app.get('/auth/discord/callback', async (req, res) => {
       }
     });
 
-    // Stocker les informations dans la session
+    const userData = userResponse.data;
+
+    // Vérifier la blacklist Clarty OpenBL
+    const blacklistCheck = await checkClartyBlacklist(userData.id);
+    
+    if (blacklistCheck.isBlacklisted) {
+      // L'utilisateur est blacklisté, log et redirection
+      const reason = blacklistCheck.userData?.blacklisted_reasons?.fr_fr || 
+                    blacklistCheck.userData?.blacklisted_reasons?.en_gb || 
+                    'Raison non spécifiée';
+      
+      await logToWebhookAndConsole(
+        "🚫 Tentative de connexion blacklistée",
+        `**${userData.username}** (blacklisté) a tenté de se connecter au panel web.`,
+        [
+          { name: "Utilisateur", value: `${userData.username} (ID: ${userData.id})`, inline: true },
+          { name: "Raison blacklist", value: reason, inline: false },
+          { name: "Date", value: new Date().toLocaleString(), inline: true },
+          { name: "Action", value: "Connexion refusée", inline: true }
+        ],
+        0xED4245 // Rouge pour les blocages
+      );
+
+      // Rediriger vers la page de blacklist avec la raison
+      const encodedReason = encodeURIComponent(reason);
+      return res.redirect(`/blacklisted?reason=${encodedReason}`);
+    }
+
+    // Si pas blacklisté ou erreur API (on laisse passer), continuer la connexion normale
     req.session.accessToken = access_token;
     req.session.refreshToken = refresh_token;
     req.session.expiresAt = Date.now() + expires_in * 1000;
-    req.session.user = userResponse.data;
+    req.session.user = userData;
     
     // Log de connexion au panel web
+    const logFields = [
+      { name: "Utilisateur", value: `${userData.username} (ID: ${userData.id})`, inline: true },
+      { name: "Date", value: new Date().toLocaleString(), inline: true }
+    ];
+
+    // Ajouter info sur le check Clarty si il y a eu une erreur
+    if (blacklistCheck.error) {
+      logFields.push({ 
+        name: "Note Clarty", 
+        value: "Erreur lors de la vérification, connexion autorisée par défaut", 
+        inline: false 
+      });
+    } else {
+      logFields.push({ 
+        name: "Statut Clarty", 
+        value: "Utilisateur vérifié, non blacklisté", 
+        inline: true 
+      });
+    }
+
     await logToWebhookAndConsole(
       "👤 Connexion au panel web", 
-      `**${userResponse.data.username}** s'est connecté au panel web.`,
-      [
-        { name: "Utilisateur", value: `${userResponse.data.username} (ID: ${userResponse.data.id})`, inline: true },
-        { name: "Date", value: new Date().toLocaleString(), inline: true }
-      ],
+      `**${userData.username}** s'est connecté au panel web.`,
+      logFields,
       0x5865F2 // Couleur bleu Discord
     );
 
