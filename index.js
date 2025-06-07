@@ -522,6 +522,14 @@ client.on(Events.InteractionCreate, async interaction => {
     const form = client.forms[interaction.guildId]?.[formId];
     if (!form) return interaction.reply({ content: 'Formulaire introuvable.', ephemeral: true });
 
+    // Vérifier si l'utilisateur est blacklisté sur ce serveur
+    if (client.isUserBlacklisted(interaction.guildId, interaction.user.id)) {
+      return interaction.reply({ 
+        content: '🚫 Vous êtes blacklisté sur ce serveur et ne pouvez pas répondre aux formulaires.', 
+        ephemeral: true 
+      });
+    }
+
     // Vérifier si l'utilisateur a déjà répondu (si singleResponse est activé)
     if (form.singleResponse && form.respondents && form.respondents[interaction.user.id]) {
       return interaction.reply({ 
@@ -1244,14 +1252,21 @@ client.on(Events.InteractionCreate, async interaction => {
         });
       }
     }
-  } else if (interaction.isModalSubmit()) {
-    // Gestion des étapes du formulaire
+  } else if (interaction.isModalSubmit()) {    // Gestion des étapes du formulaire
     if (interaction.customId.startsWith('form_step_')) {
       const [, , formId, currentStep] = interaction.customId.split('_');
       const currentStepNum = parseInt(currentStep);
       const form = client.forms[interaction.guildId]?.[formId];
       
       if (!form) return interaction.reply({ content: 'Formulaire introuvable.', ephemeral: true });
+
+      // Vérifier si l'utilisateur est blacklisté sur ce serveur
+      if (client.isUserBlacklisted(interaction.guildId, interaction.user.id)) {
+        return interaction.reply({ 
+          content: '🚫 Vous êtes blacklisté sur ce serveur et ne pouvez pas répondre aux formulaires.', 
+          ephemeral: true 
+        });
+      }
       
       // Récupérer les réponses de cette étape
       const questionsPerStep = 5;
@@ -1403,12 +1418,20 @@ client.on(Events.InteractionCreate, async interaction => {
       
       return;
     }
-    
-    if (interaction.customId.startsWith('fill_modal_')) {
+      if (interaction.customId.startsWith('fill_modal_')) {
     // Traitement spécial pour les réponses aux formulaires (pas de formBuilder)
     const formId = interaction.customId.split('_')[2];
     const form = client.forms[interaction.guildId]?.[formId];
     if (!form) return interaction.reply({ content: 'Formulaire introuvable.', ephemeral: true });
+
+    // Vérifier si l'utilisateur est blacklisté sur ce serveur
+    if (client.isUserBlacklisted(interaction.guildId, interaction.user.id)) {
+      return interaction.reply({ 
+        content: '🚫 Vous êtes blacklisté sur ce serveur et ne pouvez pas répondre aux formulaires.', 
+        ephemeral: true 
+      });
+    }
+
       // Vérifier si l'utilisateur a déjà répondu (si singleResponse est activé)
     if (form.singleResponse && form.respondents && form.respondents[interaction.user.id]) {
       // Log de tentative de réponse multiple
@@ -2993,3 +3016,49 @@ app.get('/privacy-policy', (req, res) => {
 app.get('/terms-of-sale', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'terms-of-sale.html'));
 });
+
+// Stockage de la blacklist locale par serveur
+const blacklistPath = './blacklist.json';
+let serverBlacklists = fs.existsSync(blacklistPath) ? fs.readJsonSync(blacklistPath) : {};
+
+// Fonction pour charger la blacklist
+function loadBlacklist() {
+  try {
+    if (fs.existsSync(blacklistPath)) {
+      serverBlacklists = fs.readJsonSync(blacklistPath);
+      console.log(`Blacklist chargée: ${Object.keys(serverBlacklists).length} serveurs avec blacklist`);
+    } else {
+      serverBlacklists = {};
+    }
+    return serverBlacklists;
+  } catch (error) {
+    console.error('Erreur lors du chargement de la blacklist:', error);
+    return {};
+  }
+}
+
+// Fonction pour sauvegarder la blacklist
+function saveBlacklist(blacklistData) {
+  try {
+    fs.writeJsonSync(blacklistPath, blacklistData || serverBlacklists, { spaces: 2 });
+    console.log('Blacklist sauvegardée avec succès');
+    return true;
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde de la blacklist:', error);
+    return false;
+  }
+}
+
+// Fonction pour vérifier si un utilisateur est blacklisté sur un serveur
+function isUserBlacklisted(guildId, userId) {
+  const blacklist = loadBlacklist();
+  return blacklist[guildId] && blacklist[guildId].includes(userId);
+}
+
+// Attacher les fonctions au client pour les rendre accessibles dans les commandes
+client.loadBlacklist = loadBlacklist;
+client.saveBlacklist = saveBlacklist;
+client.isUserBlacklisted = isUserBlacklisted;
+
+// Charger la blacklist au démarrage
+loadBlacklist();
