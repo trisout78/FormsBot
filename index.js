@@ -1311,10 +1311,31 @@ client.on(Events.InteractionCreate, async interaction => {
           .addFields(form.questions.map((q, i) => ({ name: q.text, value: allAnswers[i] })));
         
         const targetChannel = await client.channels.fetch(form.responseChannelId);
-        
-        // Envoyer d'abord le message pour avoir l'ID
+          // Envoyer d'abord le message pour avoir l'ID
         const sent = await targetChannel.send({ embeds: [resultEmbed] });
         const messageId = sent.id;
+        
+        // Créer un thread automatiquement si l'option est activée
+        if (form.createThreads) {
+          try {
+            const threadName = `${form.title} - ${interaction.user.username}`;
+            const thread = await sent.startThread({
+              name: threadName.length > 100 ? threadName.substring(0, 97) + '...' : threadName,
+              autoArchiveDuration: 4320, // 3 jours
+              reason: `Thread automatique pour la réponse au formulaire "${form.title}"`
+            });
+            
+            // Envoyer un message initial dans le thread pour indiquer son purpose
+            await thread.send({
+              content: `🧵 **Thread de discussion pour cette réponse**\n\nCe thread a été créé automatiquement pour permettre aux membres du staff de discuter de cette réponse au formulaire **${form.title}**.\n\n👤 **Auteur de la réponse :** ${interaction.user.toString()}`
+            });
+            
+            console.log(`Thread créé: ${thread.name} (ID: ${thread.id}) pour la réponse de ${interaction.user.username}`);
+          } catch (error) {
+            console.error('Erreur lors de la création du thread:', error);
+            // On continue même si la création du thread échoue
+          }
+        }
         
         // Construction des boutons selon les options
         const buttons = [];
@@ -1493,10 +1514,31 @@ client.on(Events.InteractionCreate, async interaction => {
     // Préparer les boutons selon les options du formulaire
     let components = [];
     let messageId;
-    
-    // Envoyer d'abord le message pour avoir l'ID
+      // Envoyer d'abord le message pour avoir l'ID
     const sent = await targetChannel.send({ embeds: [resultEmbed] });
     messageId = sent.id;
+    
+    // Créer un thread automatiquement si l'option est activée
+    if (form.createThreads) {
+      try {
+        const threadName = `${form.title} - ${interaction.user.username}`;
+        const thread = await sent.startThread({
+          name: threadName.length > 100 ? threadName.substring(0, 97) + '...' : threadName,
+          autoArchiveDuration: 4320, // 3 jours
+          reason: `Thread automatique pour la réponse au formulaire "${form.title}"`
+        });
+        
+        // Envoyer un message initial dans le thread pour indiquer son purpose
+        await thread.send({
+          content: `🧵 **Thread de discussion pour cette réponse**\n\nCe thread a été créé automatiquement pour permettre aux membres du staff de discuter de cette réponse au formulaire **${form.title}**.\n\n👤 **Auteur de la réponse :** ${interaction.user.toString()}`
+        });
+        
+        console.log(`Thread créé: ${thread.name} (ID: ${thread.id}) pour la réponse de ${interaction.user.username}`);
+      } catch (error) {
+        console.error('Erreur lors de la création du thread:', error);
+        // On continue même si la création du thread échoue
+      }
+    }
     
     // Construction des boutons selon les options
     const buttons = [];
@@ -1945,12 +1987,12 @@ app.get('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, (req,
   // Si formId est fourni, récupérer le formulaire existant
   let form = {
     title: '',
-    questions: [{ text: '', style: 'SHORT' }],
-    embedChannelId: '',
+    questions: [{ text: '', style: 'SHORT' }],    embedChannelId: '',
     responseChannelId: '',
     embedText: '',
     buttonLabel: '',
     singleResponse: false,
+    createThreads: false,
     reviewOptions: { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' }
   };
     if (formId && client.forms[guildId]?.[formId]) {
@@ -1990,10 +2032,10 @@ app.get('/api/form/:guildId', isAuthenticated, hasGuildPermission, (req, res) =>
     title: '',
     questions: [],
     embedChannelId: null,
-    responseChannelId: null,
-    embedText: '',
+    responseChannelId: null,    embedText: '',
     buttonLabel: 'Répondre',
     singleResponse: false,
+    createThreads: false,
     reviewOptions: { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' }
   };
     res.json({
@@ -2040,9 +2082,9 @@ app.post('/api/form/:guildId/generate-ai', isAuthenticated, hasGuildPermission, 
       questions: [{ text: "", style: "SHORT" }],
       embedChannelId: "",
       responseChannelId: "",
-      embedText: "",
-      buttonLabel: "",
+      embedText: "",      buttonLabel: "",
       singleResponse: false,
+      createThreads: false,
       reviewOptions: {
         enabled: false,
         customMessagesEnabled: false,
@@ -2143,8 +2185,7 @@ app.post('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, asyn
     const existingMessageId = formId && client.forms[guildId][finalFormId]?.embedMessageId;
     
     // Stocker l'ancien formulaire pour les logs
-    const oldForm = client.forms[guildId][finalFormId] ? {...client.forms[guildId][finalFormId]} : null;
-      // Sauvegarder le formulaire
+    const oldForm = client.forms[guildId][finalFormId] ? {...client.forms[guildId][finalFormId]} : null;    // Sauvegarder le formulaire
     client.forms[guildId][finalFormId] = {
       title: updatedForm.title,
       questions: updatedForm.questions,
@@ -2153,6 +2194,7 @@ app.post('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, asyn
       embedText: updatedForm.embedText,
       buttonLabel: updatedForm.buttonLabel,
       singleResponse: updatedForm.singleResponse || false,
+      createThreads: updatedForm.createThreads || false,
       cooldownOptions: updatedForm.cooldownOptions || { enabled: false, duration: 60 },
       reviewOptions: updatedForm.reviewOptions || { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' },
       embedMessageId: existingMessageId,
@@ -2256,8 +2298,7 @@ app.post('/api/form/:guildId', isAuthenticated, hasGuildPermission, async (req, 
     
     // Préparation pour sauvegarder dans client.forms
     client.forms[guildId] = client.forms[guildId] || {};
-    const finalFormId = Date.now().toString();
-      // Sauvegarder le formulaire
+    const finalFormId = Date.now().toString();    // Sauvegarder le formulaire
     client.forms[guildId][finalFormId] = {
       title: updatedForm.title,
       questions: updatedForm.questions,
@@ -2266,6 +2307,7 @@ app.post('/api/form/:guildId', isAuthenticated, hasGuildPermission, async (req, 
       embedText: updatedForm.embedText,
       buttonLabel: updatedForm.buttonLabel,
       singleResponse: updatedForm.singleResponse || false,
+      createThreads: updatedForm.createThreads || false,
       cooldownOptions: updatedForm.cooldownOptions || { enabled: false, duration: 60 },
       reviewOptions: updatedForm.reviewOptions || { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' },
       embedMessageId: null,

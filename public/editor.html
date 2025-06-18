@@ -417,11 +417,18 @@
             <input type="text" id="buttonLabel" placeholder="Ex: Répondre au formulaire" value="Répondre">
         </div>
         
-        <div class="form-group checkbox-group">
+        <div id="singleResponseGroup" class="form-group checkbox-group">
             <input type="checkbox" id="singleResponse">
             <label for="singleResponse">Limiter à une seule réponse par utilisateur (avec possibilité de supprimer sa réponse)</label>
         </div>
         <div class="form-group checkbox-group">
+            <input type="checkbox" id="createThreads">
+            <label for="createThreads">Créer automatiquement un thread pour chaque réponse (pour discussion staff)</label>
+        </div>
+        <p style="font-size: 0.9rem; color: #666; margin-top: -0.5rem; margin-bottom: 1rem;">
+            📍 Un thread sera créé à partir de chaque message de réponse permettant aux membres du staff de discuter en privé de la candidature.
+        </p>
+        <div id="cooldownGroup" class="form-group checkbox-group">
             <input type="checkbox" id="cooldownEnabled">
             <label for="cooldownEnabled">Mettre un cooldown entre chaque réponse du même utilisateur <span class="premium-badge">Premium</span></label>
         </div>
@@ -559,6 +566,7 @@
             const buttonLabelInput = document.getElementById('buttonLabel');
             const alertBox = document.getElementById('alertBox');
             const singleResponseCheckbox = document.getElementById('singleResponse');
+            const createThreadsCheckbox = document.getElementById('createThreads');
             const cooldownEnabledCheckbox = document.getElementById('cooldownEnabled');
             const cooldownOptionsContainer = document.getElementById('cooldownOptionsContainer');
             const cooldownDaysInput = document.getElementById('cooldownDays');
@@ -577,6 +585,10 @@
             const serverInfo = document.getElementById('serverInfo');
             const serverIcon = document.getElementById('serverIcon');
             const serverName = document.getElementById('serverName');
+            
+            // Références pour les groupes de checkbox
+            const singleResponseGroup = document.getElementById('singleResponseGroup');
+            const cooldownGroup = document.getElementById('cooldownGroup');
             
             // Éléments IA
             const aiGenerationSection = document.getElementById('aiGenerationSection');
@@ -754,6 +766,7 @@
                     embedTextInput.value = data.form.embedText || '';
                     buttonLabelInput.value = data.form.buttonLabel || 'Répondre';
                     singleResponseCheckbox.checked = data.form.singleResponse || false;
+                    createThreadsCheckbox.checked = data.form.createThreads || false;
                     
                     // Initialiser les options de cooldown
                     if (data.form.cooldownOptions && isPremium) {
@@ -877,6 +890,7 @@
                         embedText: embedTextInput.value,
                         buttonLabel: buttonLabelInput.value,
                         singleResponse: singleResponseCheckbox.checked,
+                        createThreads: createThreadsCheckbox.checked,
                         cooldownOptions: {
                             enabled: cooldownEnabledCheckbox.checked && isPremium,
                             duration: cooldownDuration
@@ -1022,6 +1036,7 @@
                     embedTextInput.value = generatedForm.embedText || '';
                     buttonLabelInput.value = generatedForm.buttonLabel || 'Répondre';
                     singleResponseCheckbox.checked = generatedForm.singleResponse || false;
+                    createThreadsCheckbox.checked = generatedForm.createThreads || false;
                     
                     // Options de révision
                     if (generatedForm.reviewOptions) {
