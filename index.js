@@ -708,9 +708,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
         await interaction.showModal(modal);
         return; // On s'arrête ici car le traitement continue dans le gestionnaire de modal
-      }
-
-      // Si les messages personnalisés ne sont pas activés, on continue avec le comportement habituel
+      }      // Si les messages personnalisés ne sont pas activés, on continue avec le comportement habituel
       // Déférer la réponse immédiatement
       await interaction.deferReply({ ephemeral: true });
       
@@ -738,9 +736,18 @@ client.on(Events.InteractionCreate, async interaction => {
           const row = new ActionRowBuilder().addComponents(deleteButton);
           components = [row];
         }
+          // Créer le message de statut avec les informations de traitement (si activé)
+        let statusMessage = '';
+        if (form.reviewOptions.showStatusMessage !== false) { // true par défaut pour compatibilité
+          statusMessage = `La réponse de <@${userId}> a été **${isAccept ? 'acceptée' : 'refusée'}** par ${interaction.user.toString()}.`;
+        }
         
-        // Mettre à jour le message avec la nouvelle embed et les boutons appropriés
-        await message.edit({ embeds: [updatedEmbed], components: components });
+        // Mettre à jour le message avec la nouvelle embed, le message de statut et les boutons appropriés
+        await message.edit({ 
+          content: statusMessage,
+          embeds: [updatedEmbed], 
+          components: components 
+        });
         
         // Log de l'action d'acceptation/refus
         await logToWebhookAndConsole(
@@ -848,8 +855,7 @@ client.on(Events.InteractionCreate, async interaction => {
         const responseChannel = await client.channels.fetch(form.responseChannelId);
         console.log('Récupération du message:', messageId);
         const message = await responseChannel.messages.fetch(messageId);
-        
-        // Créer une nouvelle embed pour remplacer l'existante
+          // Créer une nouvelle embed pour remplacer l'existante
         const existingEmbed = message.embeds[0];
         const updatedEmbed = EmbedBuilder.from(existingEmbed)
           .setColor(isAccept ? '#57F287' : '#ED4245')
@@ -867,8 +873,26 @@ client.on(Events.InteractionCreate, async interaction => {
           components = [row];
         }
         
-        // Mettre à jour le message avec la nouvelle embed et les boutons appropriés
-        await message.edit({ embeds: [updatedEmbed], components: components });
+        // Récupérer le message personnalisé saisi ou utiliser le message par défaut
+        const messageToSend = customMessage || defaultMessage;
+          // Créer le message de statut avec les informations de traitement (si activé)
+        let statusMessage = '';
+        if (form.reviewOptions.showStatusMessage !== false) { // true par défaut pour compatibilité
+          statusMessage = `La réponse de <@${userId}> a été **${isAccept ? 'acceptée' : 'refusée'}** par ${interaction.user.toString()}`;
+          
+          // Ajouter la raison si un message personnalisé a été fourni
+          if (customMessage && customMessage.trim()) {
+            statusMessage += `\n**Raison :** ${customMessage}`;
+          }
+          statusMessage += '.';
+        }
+        
+        // Mettre à jour le message avec la nouvelle embed, le message de statut et les boutons appropriés
+        await message.edit({ 
+          content: statusMessage,
+          embeds: [updatedEmbed], 
+          components: components 
+        });
         
         // Log de l'action d'acceptation/refus
         await logToWebhookAndConsole(

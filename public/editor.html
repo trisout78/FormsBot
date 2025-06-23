@@ -461,6 +461,10 @@
                 <input type="checkbox" id="customMessagesEnabled">
                 <label for="customMessagesEnabled">Permettre d'envoyer des messages personnalisés à l'acceptation/refus</label>
             </div>
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="showStatusMessage">
+                <label for="showStatusMessage">Afficher le message de statut (qui a accepté/refusé)</label>
+            </div>
             <div id="defaultMessagesContainer">
                 <div class="form-group">
                     <label for="acceptMessage">Message d'acceptation</label>
@@ -575,6 +579,7 @@
             const reviewEnabledCheckbox = document.getElementById('reviewEnabled');
             const reviewOptionsContainer = document.getElementById('reviewOptionsContainer');
             const customMessagesEnabledCheckbox = document.getElementById('customMessagesEnabled');
+            const showStatusMessageCheckbox = document.getElementById('showStatusMessage');
             const acceptMessageInput = document.getElementById('acceptMessage');
             const rejectMessageInput = document.getElementById('rejectMessage');
             const acceptRoleSelect = document.getElementById('acceptRole');
@@ -787,6 +792,7 @@
                     if (data.form.reviewOptions) {
                         reviewEnabledCheckbox.checked = data.form.reviewOptions.enabled;
                         customMessagesEnabledCheckbox.checked = data.form.reviewOptions.customMessagesEnabled || false;
+                        showStatusMessageCheckbox.checked = data.form.reviewOptions.showStatusMessage !== false; // true par défaut pour compatibilité
                         acceptMessageInput.value = data.form.reviewOptions.acceptMessage || '';
                         rejectMessageInput.value = data.form.reviewOptions.rejectMessage || '';
                         acceptRoleSelect.value = data.form.reviewOptions.acceptRoleId || '';
@@ -898,6 +904,7 @@
                         reviewOptions: {
                             enabled: reviewEnabledCheckbox.checked,
                             customMessagesEnabled: customMessagesEnabledCheckbox.checked,
+                            showStatusMessage: showStatusMessageCheckbox.checked,
                             acceptMessage: acceptMessageInput.value,
                             rejectMessage: rejectMessageInput.value,
                             acceptRoleId: acceptRoleSelect.value,
@@ -1042,6 +1049,7 @@
                     if (generatedForm.reviewOptions) {
                         reviewEnabledCheckbox.checked = generatedForm.reviewOptions.enabled || false;
                         customMessagesEnabledCheckbox.checked = generatedForm.reviewOptions.customMessagesEnabled || false;
+                        showStatusMessageCheckbox.checked = generatedForm.reviewOptions.showStatusMessage !== false; // true par défaut
                         acceptMessageInput.value = generatedForm.reviewOptions.acceptMessage || '';
                         rejectMessageInput.value = generatedForm.reviewOptions.rejectMessage || '';
                         
