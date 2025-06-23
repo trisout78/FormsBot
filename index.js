@@ -507,8 +507,7 @@ client.on('guildCreate', guild => {
   registerGuildCommands(guild.id);
 });
 
-client.on(Events.InteractionCreate, async interaction => {
-  // Gestionnaire spécifique pour les boutons de formulaires et étapes suivantes
+client.on(Events.InteractionCreate, async interaction => {  // Gestionnaire spécifique pour les boutons de formulaires et étapes suivantes
   if (interaction.isButton() && (interaction.customId.startsWith('fill_') || interaction.customId.startsWith('next_step_'))) {
     let formId, currentStep = 0;
 
@@ -528,6 +527,22 @@ client.on(Events.InteractionCreate, async interaction => {
         content: '🚫 Vous êtes blacklisté sur ce serveur et ne pouvez pas répondre aux formulaires.', 
         ephemeral: true 
       });
+    }
+
+    // Vérifier la protection Clarty OpenBlacklist si activée
+    if (form.clartyProtection) {
+      try {
+        const blacklistCheck = await checkClartyBlacklist(interaction.user.id);
+        if (blacklistCheck.isBlacklisted) {
+          return interaction.reply({ 
+            content: '🛡️ Vous êtes blacklisté sur Clarty OpenBlacklist et ne pouvez pas répondre à ce formulaire protégé.', 
+            ephemeral: true 
+          });
+        }
+      } catch (error) {
+        console.log('Erreur lors de la vérification Clarty OpenBlacklist (bouton):', error);
+        // En cas d'erreur, on laisse passer pour ne pas bloquer les utilisateurs légitimes
+      }
     }
 
     // Vérifier si l'utilisateur a déjà répondu (si singleResponse est activé)
@@ -993,12 +1008,35 @@ client.on(Events.InteractionCreate, async interaction => {
       await interaction.deferUpdate();
       await updateWizard(builder);
       return interaction.followUp({ content: 'Type de question défini.', ephemeral: true });
-    }
-    // fill_ buttons must be handled first
+    }    // fill_ buttons must be handled first
     if (interaction.customId.startsWith('fill_')) {
       const formId = interaction.customId.split('_')[1];
       const form = client.forms[interaction.guildId]?.[formId];
       if (!form) return interaction.reply({ content: 'Formulaire introuvable.', ephemeral: true });
+
+      // Vérifier si l'utilisateur est blacklisté sur ce serveur
+      if (client.isUserBlacklisted(interaction.guildId, interaction.user.id)) {
+        return interaction.reply({ 
+          content: '🚫 Vous êtes blacklisté sur ce serveur et ne pouvez pas répondre aux formulaires.', 
+          ephemeral: true 
+        });
+      }
+
+      // Vérifier la protection Clarty OpenBlacklist si activée
+      if (form.clartyProtection) {
+        try {
+          const blacklistCheck = await checkClartyBlacklist(interaction.user.id);
+          if (blacklistCheck.isBlacklisted) {
+            return interaction.reply({ 
+              content: '🛡️ Vous êtes blacklisté sur Clarty OpenBlacklist et ne pouvez pas répondre à ce formulaire protégé.', 
+              ephemeral: true 
+            });
+          }
+        } catch (error) {
+          console.log('Erreur lors de la vérification Clarty OpenBlacklist (bouton fill):', error);
+          // En cas d'erreur, on laisse passer pour ne pas bloquer les utilisateurs légitimes
+        }
+      }
 
       // Vérifier si l'utilisateur a déjà répondu (si singleResponse est activé)
       if (form.singleResponse && form.respondents && form.respondents[interaction.user.id]) {
@@ -1201,11 +1239,34 @@ client.on(Events.InteractionCreate, async interaction => {
       client.forms[builder.guildId][formId].embedMessageId = sentMessage.id;
       fs.writeJsonSync(client.formsPath, client.forms, { spaces: 2 });
       client.formBuilders.delete(interaction.user.id);
-      await interaction.reply({ content: 'Formulaire créé !', ephemeral: true });
-    }    else if (interaction.customId.startsWith('fill_')) {
+      await interaction.reply({ content: 'Formulaire créé !', ephemeral: true });    }    else if (interaction.customId.startsWith('fill_')) {
       const formId = interaction.customId.split('_')[1];
       const form = client.forms[interaction.guildId]?.[formId];
       if (!form) return interaction.reply({ content: 'Formulaire introuvable.', ephemeral: true });
+      
+      // Vérifier si l'utilisateur est blacklisté sur ce serveur
+      if (client.isUserBlacklisted(interaction.guildId, interaction.user.id)) {
+        return interaction.reply({ 
+          content: '🚫 Vous êtes blacklisté sur ce serveur et ne pouvez pas répondre aux formulaires.', 
+          ephemeral: true 
+        });
+      }
+
+      // Vérifier la protection Clarty OpenBlacklist si activée
+      if (form.clartyProtection) {
+        try {
+          const blacklistCheck = await checkClartyBlacklist(interaction.user.id);
+          if (blacklistCheck.isBlacklisted) {
+            return interaction.reply({ 
+              content: '🛡️ Vous êtes blacklisté sur Clarty OpenBlacklist et ne pouvez pas répondre à ce formulaire protégé.', 
+              ephemeral: true 
+            });
+          }
+        } catch (error) {
+          console.log('Erreur lors de la vérification Clarty OpenBlacklist (bouton wizard):', error);
+          // En cas d'erreur, on laisse passer pour ne pas bloquer les utilisateurs légitimes
+        }
+      }
       
       // Vérifier si l'utilisateur a déjà répondu (si singleResponse est activé)
       if (form.singleResponse && form.respondents && form.respondents[interaction.user.id]) {
@@ -1290,6 +1351,22 @@ client.on(Events.InteractionCreate, async interaction => {
           content: '🚫 Vous êtes blacklisté sur ce serveur et ne pouvez pas répondre aux formulaires.', 
           ephemeral: true 
         });
+      }
+
+      // Vérifier la protection Clarty OpenBlacklist si activée
+      if (form.clartyProtection) {
+        try {
+          const blacklistCheck = await checkClartyBlacklist(interaction.user.id);
+          if (blacklistCheck.isBlacklisted) {
+            return interaction.reply({ 
+              content: '🛡️ Vous êtes blacklisté sur Clarty OpenBlacklist et ne pouvez pas répondre à ce formulaire protégé.', 
+              ephemeral: true 
+            });
+          }
+        } catch (error) {
+          console.log('Erreur lors de la vérification Clarty OpenBlacklist (modal submit):', error);
+          // En cas d'erreur, on laisse passer pour ne pas bloquer les utilisateurs légitimes
+        }
       }
       
       // Récupérer les réponses de cette étape
@@ -2007,8 +2084,7 @@ app.get('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, (req,
   const roles = guild.roles.cache
     .filter(r => r.name !== '@everyone')
     .map(r => ({ id: r.id, name: r.name }));
-  
-  // Si formId est fourni, récupérer le formulaire existant
+    // Si formId est fourni, récupérer le formulaire existant
   let form = {
     title: '',
     questions: [{ text: '', style: 'SHORT' }],    embedChannelId: '',
@@ -2017,6 +2093,7 @@ app.get('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, (req,
     buttonLabel: '',
     singleResponse: false,
     createThreads: false,
+    clartyProtection: false,
     reviewOptions: { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' }
   };
     if (formId && client.forms[guildId]?.[formId]) {
@@ -2050,8 +2127,7 @@ app.get('/api/form/:guildId', isAuthenticated, hasGuildPermission, (req, res) =>
   const roles = guild.roles.cache
     .filter(r => r.name !== '@everyone')
     .map(r => ({ id: r.id, name: r.name }));
-  
-  // Formulaire vide par défaut
+    // Formulaire vide par défaut
   const form = {
     title: '',
     questions: [],
@@ -2060,6 +2136,7 @@ app.get('/api/form/:guildId', isAuthenticated, hasGuildPermission, (req, res) =>
     buttonLabel: 'Répondre',
     singleResponse: false,
     createThreads: false,
+    clartyProtection: false,
     reviewOptions: { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' }
   };
     res.json({
@@ -2219,6 +2296,7 @@ app.post('/api/form/:guildId/:formId', isAuthenticated, hasGuildPermission, asyn
       buttonLabel: updatedForm.buttonLabel,
       singleResponse: !!updatedForm.singleResponse,
       createThreads: !!updatedForm.createThreads,
+      clartyProtection: !!updatedForm.clartyProtection,
       cooldownOptions: updatedForm.cooldownOptions || { enabled: false, duration: 60 },
       reviewOptions: updatedForm.reviewOptions || { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' },
       embedMessageId: existingMessageId,
@@ -2332,6 +2410,7 @@ app.post('/api/form/:guildId', isAuthenticated, hasGuildPermission, async (req, 
       buttonLabel: updatedForm.buttonLabel,
       singleResponse: updatedForm.singleResponse || false,
       createThreads: updatedForm.createThreads || false,
+      clartyProtection: updatedForm.clartyProtection || false,
       cooldownOptions: updatedForm.cooldownOptions || { enabled: false, duration: 60 },
       reviewOptions: updatedForm.reviewOptions || { enabled: false, acceptMessage: '', rejectMessage: '', acceptRoleId: '', rejectRoleId: '' },
       embedMessageId: null,

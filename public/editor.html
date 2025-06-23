@@ -428,7 +428,14 @@
         <p style="font-size: 0.9rem; color: #666; margin-top: -0.5rem; margin-bottom: 1rem;">
             📍 Un thread sera créé à partir de chaque message de réponse permettant aux membres du staff de discuter en privé de la candidature.
         </p>
-        <div id="cooldownGroup" class="form-group checkbox-group">
+        <div class="form-group checkbox-group">
+            <input type="checkbox" id="clartyProtection">
+            <label for="clartyProtection">Activer la protection Clarty OpenBlacklist</label>
+        </div>
+        <p style="font-size: 0.9rem; color: #666; margin-top: -0.5rem; margin-bottom: 1rem;">
+            🛡️ Empêche les utilisateurs blacklistés sur Clarty OpenBlacklist de répondre au formulaire.
+        </p>
+        <div class="form-group checkbox-group">
             <input type="checkbox" id="cooldownEnabled">
             <label for="cooldownEnabled">Mettre un cooldown entre chaque réponse du même utilisateur <span class="premium-badge">Premium</span></label>
         </div>
@@ -571,6 +578,7 @@
             const alertBox = document.getElementById('alertBox');
             const singleResponseCheckbox = document.getElementById('singleResponse');
             const createThreadsCheckbox = document.getElementById('createThreads');
+            const clartyProtectionCheckbox = document.getElementById('clartyProtection');
             const cooldownEnabledCheckbox = document.getElementById('cooldownEnabled');
             const cooldownOptionsContainer = document.getElementById('cooldownOptionsContainer');
             const cooldownDaysInput = document.getElementById('cooldownDays');
@@ -772,6 +780,7 @@
                     buttonLabelInput.value = data.form.buttonLabel || 'Répondre';
                     singleResponseCheckbox.checked = data.form.singleResponse || false;
                     createThreadsCheckbox.checked = data.form.createThreads || false;
+                    clartyProtectionCheckbox.checked = data.form.clartyProtection || false;
                     
                     // Initialiser les options de cooldown
                     if (data.form.cooldownOptions && isPremium) {
@@ -897,6 +906,7 @@
                         buttonLabel: buttonLabelInput.value,
                         singleResponse: singleResponseCheckbox.checked,
                         createThreads: createThreadsCheckbox.checked,
+                        clartyProtection: clartyProtectionCheckbox.checked,
                         cooldownOptions: {
                             enabled: cooldownEnabledCheckbox.checked && isPremium,
                             duration: cooldownDuration
