@@ -381,8 +381,6 @@ function updateBotStatus() {
   
   // Passer au statut suivant
   currentStatusIndex = (currentStatusIndex + 1) % botStatuses.length;
-  
-  console.log(`Statut mis à jour: ${status.type} ${status.name}`);
 }
 
 client.formBuilders = new Map();
