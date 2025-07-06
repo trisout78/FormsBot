@@ -677,13 +677,25 @@ function setupGiftCodeApiRoutes(app, client) {
       giftCodes[normalizedCode].usedAt = new Date().toISOString();
       giftCodes[normalizedCode].guildId = guildId;
       
-      // Ajouter le serveur à la liste premium
-      client.premiumGuilds.push(guildId);
+      // Ajouter le serveur à la liste premium avec synchronisation
+      const premiumModule = require('../../utils/premium.js');
+      const addSuccess = premiumModule.addPremiumGuild(guildId, client);
       
-      // Sauvegarder les modifications
-      saveGiftCodes();
-      const { savePremiumList } = require('../../utils/premium.js');
-      savePremiumList();
+      // Sauvegarder les codes cadeaux
+      const saveCodesSuccess = premiumModule.saveGiftCodesWithRollback();
+      
+      // Vérifier que les sauvegardes ont réussi
+      if (!addSuccess || !saveCodesSuccess) {
+        // Annuler les changements en cas d'erreur
+        giftCodes[normalizedCode].used = false;
+        giftCodes[normalizedCode].usedBy = null;
+        giftCodes[normalizedCode].usedAt = null;
+        giftCodes[normalizedCode].guildId = null;
+        
+        premiumModule.removePremiumGuild(guildId, client);
+        
+        return res.status(500).json({ error: 'Erreur lors de la sauvegarde. Veuillez réessayer.' });
+      }
       
       // Log de l'utilisation du code cadeau
       await logToWebhookAndConsole(

@@ -115,6 +115,8 @@ function savePremiumList() {
     // Sauvegarder la nouvelle version
     fs.writeJsonSync(premiumPath, premiumData, { spaces: 2 });
     
+    console.log(`Liste premium sauvegardée: ${premiumData.guilds.length} serveurs`);
+    
     // Nettoyer les anciens backups (garder seulement les 5 derniers)
     const backupFiles = fs.readdirSync(path.dirname(premiumPath)).filter(f => f.startsWith('premium_backup_'));
     if (backupFiles.length > 5) {
@@ -155,10 +157,63 @@ loadPremiumList();
 
 module.exports = {
   giftCodes,
-  premiumGuilds,
+  get premiumGuilds() { return premiumGuilds; },
+  set premiumGuilds(value) { premiumGuilds = value; },
   reloadGiftCodes,
   saveGiftCodes,
   loadPremiumList,
   savePremiumList,
-  generateGiftCode
+  generateGiftCode,
+  
+  // Fonction pour synchroniser avec le client
+  syncWithClient(client) {
+    if (client && Array.isArray(client.premiumGuilds)) {
+      // Synchroniser les listes
+      const combined = [...new Set([...premiumGuilds, ...client.premiumGuilds])];
+      premiumGuilds.length = 0;
+      premiumGuilds.push(...combined);
+      client.premiumGuilds.length = 0;
+      client.premiumGuilds.push(...combined);
+    }
+  },
+  
+  // Fonction pour ajouter un serveur premium avec synchronisation
+  addPremiumGuild(guildId, client = null) {
+    if (!premiumGuilds.includes(guildId)) {
+      premiumGuilds.push(guildId);
+    }
+    if (client && Array.isArray(client.premiumGuilds) && !client.premiumGuilds.includes(guildId)) {
+      client.premiumGuilds.push(guildId);
+    }
+    // Sauvegarder automatiquement après ajout
+    return this.savePremiumList();
+  },
+  
+  // Fonction pour supprimer un serveur premium avec synchronisation
+  removePremiumGuild(guildId, client = null) {
+    const index = premiumGuilds.indexOf(guildId);
+    if (index > -1) {
+      premiumGuilds.splice(index, 1);
+    }
+    if (client && Array.isArray(client.premiumGuilds)) {
+      const clientIndex = client.premiumGuilds.indexOf(guildId);
+      if (clientIndex > -1) {
+        client.premiumGuilds.splice(clientIndex, 1);
+      }
+    }
+    // Sauvegarder automatiquement après suppression
+    return this.savePremiumList();
+  },
+  
+  // Fonction pour sauvegarder les codes cadeaux avec gestion automatique d'erreur
+  saveGiftCodesWithRollback() {
+    const backup = { ...giftCodes };
+    const success = this.saveGiftCodes();
+    if (!success) {
+      // Restaurer l'ancien état en cas d'erreur
+      Object.keys(giftCodes).forEach(key => delete giftCodes[key]);
+      Object.assign(giftCodes, backup);
+    }
+    return success;
+  }
 };

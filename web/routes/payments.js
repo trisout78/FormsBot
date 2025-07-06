@@ -4,6 +4,7 @@ const querystring = require('querystring');
 const { config, baseUrl } = require('../../utils/config.js');
 const { isAuthenticated, hasGuildPermission } = require('../middleware/auth.js');
 const { logToWebhookAndConsole } = require('../../utils/logger.js');
+const premiumModule = require('../../utils/premium.js');
 
 // Base de données des transactions pour éviter les doublons
 const processedTransactions = new Set();
@@ -139,16 +140,33 @@ async function processSuccessfulPayment(formData, clientIP, client) {
     const custom = formData.custom;
     const guildId = custom.startsWith('guild_') ? custom.split('_')[1] : custom;
     
-    if (!client.premiumGuilds.includes(guildId)) {
-      client.premiumGuilds.push(guildId);
-      // Sauvegarder la liste premium
-      await logToWebhookAndConsole(
-        '🟢 Premium activé',
-        `Serveur **${guildId}** activé en premium via IPN (${clientIP})`,
-        [],
-        0x57F287
-      );
+    // Vérifier que le guildId est valide
+    if (!guildId || !/^\d{17,19}$/.test(guildId)) {
+      console.error('ID de serveur invalide:', guildId);
+      return false;
     }
+    
+    // Ajouter à la liste premium si pas déjà présent avec sauvegarde automatique
+    if (!premiumModule.premiumGuilds.includes(guildId)) {
+      const addSuccess = premiumModule.addPremiumGuild(guildId, client);
+      
+      if (!addSuccess) {
+        console.error('Erreur lors de la sauvegarde de la liste premium');
+        return false;
+      }
+    }
+    
+    await logToWebhookAndConsole(
+      '🟢 Premium activé',
+      `Serveur **${guildId}** activé en premium via IPN (${clientIP})`,
+      [
+        { name: 'Transaction ID', value: formData.txn_id || 'N/A', inline: true },
+        { name: 'Montant', value: `${formData.mc_gross || 'N/A'} ${formData.mc_currency || 'N/A'}`, inline: true },
+        { name: 'Email PayPal', value: formData.payer_email || 'N/A', inline: true }
+      ],
+      0x57F287
+    );
+    
     return true;
   } catch (e) {
     console.error('Erreur in processSuccessfulPayment:', e);

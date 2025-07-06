@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const { giftCodes, premiumGuilds, saveGiftCodes, savePremiumList } = require('../utils/premium.js');
+const premiumModule = require('../utils/premium.js');
 const { logToWebhookAndConsole } = require('../utils/logger.js');
 
 module.exports = {
@@ -24,7 +24,7 @@ module.exports = {
     }
 
     // Vérifier si le serveur est déjà premium
-    if (premiumGuilds.includes(interaction.guildId)) {
+    if (premiumModule.premiumGuilds.includes(interaction.guildId)) {
       const embed = new EmbedBuilder()
         .setTitle('✨ Serveur déjà premium')
         .setDescription('Ce serveur dispose déjà du statut premium!')
@@ -43,8 +43,11 @@ module.exports = {
     try {
       await interaction.deferReply({ ephemeral: true });
 
+      // Recharger les codes cadeaux pour être sûr d'avoir les dernières données
+      premiumModule.reloadGiftCodes();
+
       // Vérifier si le code existe
-      if (!giftCodes[code]) {
+      if (!premiumModule.giftCodes[code]) {
         const embed = new EmbedBuilder()
           .setTitle('❌ Code invalide')
           .setDescription('Ce code cadeau n\'existe pas ou est invalide.')
@@ -59,7 +62,7 @@ module.exports = {
         });
       }
 
-      const giftCode = giftCodes[code];
+      const giftCode = premiumModule.giftCodes[code];
 
       // Vérifier si le code a déjà été utilisé
       if (giftCode.used) {
@@ -77,9 +80,8 @@ module.exports = {
         });
       }
 
-      // Activer le premium sur ce serveur
-      premiumGuilds.push(interaction.guildId);
-      client.premiumGuilds = premiumGuilds;
+      // Activer le premium sur ce serveur avec synchronisation et sauvegarde automatique
+      const addSuccess = premiumModule.addPremiumGuild(interaction.guildId, client);
 
       // Marquer le code comme utilisé
       giftCode.used = true;
@@ -87,11 +89,19 @@ module.exports = {
       giftCode.usedAt = new Date().toISOString();
       giftCode.guildId = interaction.guildId;
 
-      // Sauvegarder les changements
-      const saveCodesSuccess = saveGiftCodes();
-      const savePremiumSuccess = savePremiumList();
+      // Sauvegarder les codes cadeaux avec rollback automatique en cas d'erreur
+      const saveCodesSuccess = premiumModule.saveGiftCodesWithRollback();
 
-      if (!saveCodesSuccess || !savePremiumSuccess) {
+      if (!addSuccess || !saveCodesSuccess) {
+        // En cas d'erreur, annuler tous les changements
+        premiumModule.removePremiumGuild(interaction.guildId, client);
+        
+        // Réinitialiser le code
+        giftCode.used = false;
+        giftCode.usedBy = null;
+        giftCode.usedAt = null;
+        giftCode.guildId = null;
+        
         return await interaction.editReply({
           content: '❌ Erreur lors de la sauvegarde. Veuillez réessayer.'
         });
