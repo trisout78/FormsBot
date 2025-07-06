@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const fs = require('fs-extra');
-const config = require('../config.json');
+const { config } = require('../utils/config.js');
+const { giftCodes, saveGiftCodes, generateGiftCode } = require('../utils/premium.js');
+const { logToWebhookAndConsole } = require('../utils/logger.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -17,20 +18,7 @@ module.exports = {
     }
 
     try {
-      // Générer un code cadeau unique
-      function generateGiftCode() {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        let result = '';
-        for (let i = 0; i < 16; i++) {
-          if (i > 0 && i % 4 === 0) result += '-';
-          result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return result;
-      }
-
-      // Charger les codes existants
-      const giftCodesPath = './gift-codes.json';
-      let giftCodes = fs.existsSync(giftCodesPath) ? fs.readJsonSync(giftCodesPath) : {};
+      await interaction.deferReply({ ephemeral: true });
 
       // Générer un code unique
       let newCode;
@@ -49,35 +37,59 @@ module.exports = {
       };
 
       // Sauvegarder les codes
-      fs.writeJsonSync(giftCodesPath, giftCodes, { spaces: 2 });
+      const saveSuccess = saveGiftCodes();
+      
+      if (!saveSuccess) {
+        return await interaction.editReply({
+          content: '❌ Erreur lors de la sauvegarde du code cadeau.'
+        });
+      }
+
+      // Log de génération
+      await logToWebhookAndConsole(
+        "🎁 Code cadeau généré",
+        `**${interaction.user.username}** a généré un nouveau code cadeau premium`,
+        [
+          { name: "Code", value: `\`${newCode}\``, inline: true },
+          { name: "Générateur", value: `${interaction.user.username} (ID: ${interaction.user.id})`, inline: true },
+          { name: "Date", value: new Date().toLocaleString(), inline: true },
+          { name: "Statut", value: "Non utilisé", inline: true }
+        ],
+        0x9B59B6
+      );
 
       // Créer l'embed de réponse
       const embed = new EmbedBuilder()
-        .setTitle('🎁 Code cadeau premium généré')
-        .setDescription(`Voici votre nouveau code cadeau premium :`)
+        .setTitle('🎁 Code cadeau généré avec succès!')
+        .setDescription(`Un nouveau code cadeau premium a été créé.`)
         .addFields(
-          { name: '🔑 Code', value: `\`${newCode}\``, inline: false },
-          { name: '📅 Créé le', value: new Date().toLocaleString('fr-FR'), inline: true },
-          { name: '👤 Créé par', value: interaction.user.toString(), inline: true },
-          { name: '📋 Instructions', value: 'Ce code peut être utilisé sur la page premium pour activer le statut premium gratuitement sur un serveur.', inline: false }
+          { name: '🎫 Code', value: `\`${newCode}\``, inline: false },
+          { name: '📋 Instructions', value: 'Ce code peut être utilisé avec la commande `/redeem-premium` pour activer le premium sur un serveur.', inline: false },
+          { name: '⚠️ Important', value: '• Gardez ce code secret\n• Utilisable une seule fois\n• Valide indéfiniment\n• Active le premium à vie', inline: false }
         )
-        .setColor(0xFFD700)
+        .setColor(0x9B59B6)
+        .setFooter({ text: `Généré par ${interaction.user.username} • ${new Date().toLocaleString()}` })
         .setTimestamp();
 
-      await interaction.reply({
-        embeds: [embed],
-        ephemeral: true
+      await interaction.editReply({
+        embeds: [embed]
       });
 
-      // Log la génération du code
-      console.log(`Code cadeau généré: ${newCode} par ${interaction.user.tag} (${interaction.user.id})`);
+      console.log(`Code cadeau ${newCode} généré par ${interaction.user.username} (${interaction.user.id})`);
 
     } catch (error) {
       console.error('Erreur lors de la génération du code cadeau:', error);
-      await interaction.reply({
-        content: '❌ Une erreur est survenue lors de la génération du code cadeau.',
-        ephemeral: true
-      });
+      
+      if (interaction.deferred) {
+        await interaction.editReply({
+          content: '❌ Erreur lors de la génération du code cadeau.'
+        });
+      } else {
+        await interaction.reply({
+          content: '❌ Erreur lors de la génération du code cadeau.',
+          ephemeral: true
+        });
+      }
     }
   }
 };

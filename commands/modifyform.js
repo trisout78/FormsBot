@@ -1,5 +1,5 @@
-const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const config = require('../config.json');
+const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
+const { config } = require('../utils/config.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -41,16 +41,35 @@ module.exports = {
     collector.on('collect', async i => {
       const formId = i.values[0];
       const guildId = interaction.guildId;
+      const selectedForm = guildForms[formId];
       
       // Construire l'URL pour l'édition du formulaire
-      const editUrl = `${config.webserver.baseUrl}/edit/${guildId}/${formId}`;
+      const baseUrl = config.webserver.baseUrl.match(/^https?:\/\//) ? config.webserver.baseUrl : `http://${config.webserver.baseUrl}`;
+      const editUrl = `${baseUrl}/edit/${guildId}/${formId}`;
       
       const embed = new EmbedBuilder()
-        .setTitle('Modification de formulaire')
-        .setDescription(`Cliquez sur le lien ci-dessous pour modifier votre formulaire. Vous serez redirigé vers la page d'authentification Discord si nécessaire.\n\n**[Modifier le formulaire](${editUrl})**`)
-        .setColor('#3498db');
+        .setTitle('🖊️ Modification de formulaire')
+        .setDescription(`Cliquez sur le lien ci-dessous pour modifier votre formulaire **"${selectedForm.title}"**.\n\nVous serez redirigé vers la page d'authentification Discord si nécessaire.`)
+        .addFields(
+          { name: '📋 Formulaire', value: selectedForm.title, inline: true },
+          { name: '❓ Questions', value: selectedForm.questions.length.toString(), inline: true },
+          { name: '🆔 ID', value: formId, inline: true }
+        )
+        .setColor(0x3498db)
+        .setFooter({ text: 'Cliquez sur le lien pour accéder à l\'interface de modification' });
       
-      await i.update({ content: null, embeds: [embed], components: [] });
+      const linkButton = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setLabel('🖊️ Modifier le formulaire')
+          .setStyle(ButtonStyle.Link)
+          .setURL(editUrl)
+      );
+      
+      await i.update({ 
+        content: '', 
+        embeds: [embed], 
+        components: [linkButton] 
+      });
     });
     
     collector.on('end', collected => {
