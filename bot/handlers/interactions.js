@@ -33,7 +33,7 @@ async function handleInteractions(interaction, client) {
     }
 
     // Gestionnaire pour les boutons de soumission de formulaires
-    if (interaction.isButton() && interaction.customId.startsWith('fill_')) {
+    if (interaction.isButton() && (interaction.customId.startsWith('fill_') || interaction.customId.startsWith('continue_form_'))) {
       return await handleFormSubmission(interaction, client);
     }
 
@@ -103,9 +103,11 @@ async function handleSlashCommand(interaction, client) {
 }
 
 async function handleFormSubmission(interaction, client) {
-  const formId = interaction.customId.split('_')[1];
+  const customIdParts = interaction.customId.split('_');
+  const formId = customIdParts.length > 2 ? customIdParts[2] : customIdParts[1];
   const guildId = interaction.guild.id;
-  
+  const step = interaction.customId.startsWith('continue_form_') ? parseInt(customIdParts[3], 10) : 1;
+
   // Vérifier si le formulaire existe
   const form = client.forms[guildId]?.[formId];
   if (!form) {
@@ -184,15 +186,18 @@ async function handleFormSubmission(interaction, client) {
 
   // Créer le modal avec les questions du formulaire
   const modal = new ModalBuilder()
-    .setCustomId(`fill_modal_${formId}`)
+    .setCustomId(`fill_modal_${formId}_${step}`)
     .setTitle(form.title.length > 45 ? form.title.substring(0, 42) + '...' : form.title);
 
-  // Ajouter les questions (maximum 5 par modal Discord)
-  const questions = form.questions.slice(0, 5);
+  // Ajouter les questions pour l'étape actuelle
+  const questionsPerPage = 5;
+  const startIndex = (step - 1) * questionsPerPage;
+  const endIndex = startIndex + questionsPerPage;
+  const questions = form.questions.slice(startIndex, endIndex);
   
   questions.forEach((question, index) => {
     const textInput = new TextInputBuilder()
-      .setCustomId(`question_${index}`)
+      .setCustomId(`question_${startIndex + index}`)
       .setLabel(question.text.length > 45 ? question.text.substring(0, 42) + '...' : question.text)
       .setStyle(question.style === 'PARAGRAPH' ? TextInputStyle.Paragraph : TextInputStyle.Short)
       .setRequired(true);
@@ -205,7 +210,9 @@ async function handleFormSubmission(interaction, client) {
 }
 
 async function handleFormModalSubmission(interaction, client) {
-  const formId = interaction.customId.split('_')[2];
+  const customIdParts = interaction.customId.split('_');
+  const formId = customIdParts[2];
+  const step = parseInt(customIdParts[3], 10);
   const guildId = interaction.guild.id;
   
   const form = client.forms[guildId]?.[formId];
@@ -216,18 +223,54 @@ async function handleFormModalSubmission(interaction, client) {
     });
   }
 
-  // Récupérer les réponses
-  const responses = [];
-  let questionIndex = 0;
-  
-  while (questionIndex < form.questions.length && questionIndex < 5) {
-    const response = interaction.fields.getTextInputValue(`question_${questionIndex}`);
-    responses.push({
-      question: form.questions[questionIndex].text,
-      answer: response
-    });
-    questionIndex++;
+  // Initialiser le stockage des réponses pour l'utilisateur si nécessaire
+  if (!client.formResponses) {
+    client.formResponses = {};
   }
+  if (!client.formResponses[interaction.user.id]) {
+    client.formResponses[interaction.user.id] = {
+      formId: formId,
+      responses: []
+    };
+  }
+
+  // Récupérer et stocker les réponses de l'étape actuelle
+  interaction.fields.fields.forEach((field, customId) => {
+    const questionIndex = parseInt(customId.split('_')[1]);
+    client.formResponses[interaction.user.id].responses[questionIndex] = {
+      question: form.questions[questionIndex].text,
+      answer: field.value
+    };
+  });
+
+  // Vérifier s'il y a d'autres étapes
+  const questionsPerPage = 5;
+  const totalSteps = Math.ceil(form.questions.length / questionsPerPage);
+  if (step < totalSteps) {
+    // Il y a d'autres étapes, envoyer un message pour continuer
+    const nextStep = step + 1;
+    const embed = new EmbedBuilder()
+      .setColor(0xED4245) // Rouge
+      .setTitle(`Étape ${step}/${totalSteps} terminée`)
+      .setDescription(`Vous avez terminé l\'étape ${step} sur ${totalSteps}. Cliquez sur le bouton ci-dessous pour continuer.`);
+
+    const continueButton = new ButtonBuilder()
+      .setCustomId(`continue_form_${formId}_${nextStep}`)
+      .setLabel('Continuer')
+      .setStyle(ButtonStyle.Primary);
+
+    const row = new ActionRowBuilder().addComponents(continueButton);
+
+    return await interaction.reply({
+      embeds: [embed],
+      components: [row],
+      ephemeral: true
+    });
+  }
+
+  // C'est la dernière étape, traiter la soumission complète
+  const responses = client.formResponses[interaction.user.id].responses.filter(r => r); // Nettoyer les éléments vides
+  delete client.formResponses[interaction.user.id]; // Nettoyer les réponses stockées
 
   // Marquer le cooldown si activé
   if (form.cooldownOptions?.enabled && client.premiumGuilds.includes(guildId)) {
