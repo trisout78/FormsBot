@@ -177,7 +177,7 @@ function setupFormApiRoutes(app, client) {
     // Vérification de la limite de formulaires pour les serveurs non premium
     const formsForGuild = client.forms[guildId] || {};
     const formCount = Object.keys(formsForGuild).length;
-    if (!client.premiumGuilds.includes(guildId) && formCount >= 3) {
+    if (!client.premiumGuilds.includes(guildId) && formCount >= 3 && !formsForGuild[formId]) {
       return res.status(403).json({ error: 'Limite atteinte', message: "Vous avez atteint la limite de 3 formulaires. Passez en premium pour des formulaires illimités." });
     }
 
