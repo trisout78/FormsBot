@@ -27,7 +27,7 @@ module.exports = {
     
     if (!isPremium && formCount >= 3) {
       const baseUrl = config.webserver.baseUrl.match(/^https?:\/\//) ? config.webserver.baseUrl : `http://${config.webserver.baseUrl}`;
-      const premiumUrl = `${baseUrl}/premium`;
+      const premiumUrl = `${baseUrl}/premium?guild=${guildId}`;
       
       const limitEmbed = new EmbedBuilder()
         .setTitle('❌ Limite atteinte')
@@ -73,8 +73,9 @@ module.exports = {
     const optionRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('use_wizard')
-        .setLabel('🧙‍♂️ Assistant guidé (Recommandé)')
-        .setStyle(ButtonStyle.Primary),
+        .setLabel('🧙‍♂️ Assistant guidé (Maintenance)')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(true),
       new ButtonBuilder()
         .setCustomId('use_web_panel')
         .setLabel('🌐 Interface web')
