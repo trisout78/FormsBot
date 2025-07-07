@@ -65,14 +65,13 @@ function setupPaymentRoutes(app, client) {
   // Route IPN PayPal
   app.post('/api/paypal/ipn', 
     ipnSecurityMiddleware,
-    bodyParser.raw({ type: '*/*' }),
+    bodyParser.urlencoded({ extended: true }),
     async (req, res) => {
       const clientIP = req.ip || req.connection.remoteAddress;
       console.log(`Notification IPN PayPal reçue depuis ${clientIP}`);
       
       try {
-        let raw = req.body.toString('utf8');
-        let formData = querystring.parse(raw);
+        const formData = req.body;
         
         // Vérification des champs requis
         const requiredFields = ['txn_id', 'payment_status', 'custom'];

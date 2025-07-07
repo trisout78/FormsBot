@@ -33,11 +33,11 @@ function setupStaticRoutes(app, client) {
     res.sendFile(path.join(__dirname, '../../public', 'blacklisted.html'));
   });
 
-  app.get('/payment-success', isAuthenticated, (req, res) => {
+  app.get('/payment-success', (req, res) => {
     res.sendFile(path.join(__dirname, '../../public', 'payment-success.html'));
   });
 
-  app.get('/payment-cancel', isAuthenticated, (req, res) => {
+  app.get('/payment-cancel', (req, res) => {
     res.sendFile(path.join(__dirname, '../../public', 'payment-cancel.html'));
   });
 
