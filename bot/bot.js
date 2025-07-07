@@ -123,7 +123,8 @@ function setupStatusRotation() {
     { type: 'Listening', name: '💬 Vos commandes' },
     { type: 'Watching', name: '⚙️ Les configurations' },
     { type: 'Playing', name: '🤖 Assistant IA intégré' },
-    { type: 'Playing', name: '💎 Premium disponible' }
+    { type: 'Playing', name: '💎 Premium disponible' },
+    { type: 'Playing', name: '🆕 1.5 disponible' }
   ];
 
   let currentStatusIndex = 0;
@@ -176,7 +177,7 @@ function setupEventHandlers() {
       [
         { name: "Serveurs", value: client.guilds.cache.size.toString(), inline: true },
         { name: "Utilisateurs", value: client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0).toString(), inline: true },
-        { name: "Version", value: "2.0 (Refactorisé)", inline: true }
+        { name: "Version", value: "1.5", inline: true }
       ],
       0x00FF00
     );
