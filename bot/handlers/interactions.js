@@ -1043,7 +1043,6 @@ async function handleAIResponseButtons(interaction, client) {
           new TextInputBuilder()
             .setCustomId('custom_message_input')
             .setLabel('Message à envoyer à l\'utilisateur')
-            .setPlaceholder(storedResponse.message)
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(false)
         )
