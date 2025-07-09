@@ -95,6 +95,7 @@ Contexte:
     prompt += `\n- En français
 - Entre 50 et 200 mots
 - Sans utiliser de markdown (pas de **gras** ou *italique*)
+- NE SURTOUT PAS DEPASSER LES 1000 CARACTÈRES
 
 ${isAccept ? 'Commence par féliciter l\'utilisateur pour son acceptation.' : 'Commence par remercier l\'utilisateur pour sa réponse.'}`;
 
