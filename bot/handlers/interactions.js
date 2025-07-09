@@ -887,8 +887,6 @@ async function handleAIFeedbackModal(interaction, client) {
   const [, , action, formId, messageId, userId] = interaction.customId.split('_');
   const feedback = interaction.fields.getTextInputValue('feedback_input');
   
-  console.log(`[DEBUG] Feedback reçu de ${interaction.user.username}: "${feedback}"`);
-  
   await interaction.deferReply({ ephemeral: true });
   
   const storedResponse = client.aiResponses?.[interaction.user.id];
@@ -898,9 +896,6 @@ async function handleAIFeedbackModal(interaction, client) {
       ephemeral: true
     });
   }
-
-  console.log(`[DEBUG] Régénération avec feedback pour utilisateur ${interaction.user.username}`);
-  console.log(`[DEBUG] Paramètres: isAccept=${storedResponse.isAccept}, reason="${storedResponse.reason}", instructions="${storedResponse.instructions}", feedback="${feedback}"`);
 
   try {
     // Vérifier la limite de taux IA
@@ -923,8 +918,6 @@ async function handleAIFeedbackModal(interaction, client) {
       storedResponse.instructions,
       feedback
     );
-
-    console.log(`[DEBUG] Résultat IA: success=${aiResult.success}, message="${aiResult.message}"`);
 
     if (!aiResult.success) {
       return await interaction.editReply({

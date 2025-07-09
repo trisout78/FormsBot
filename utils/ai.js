@@ -63,25 +63,31 @@ Contexte:
 - Action: ${action}
 - Ton: ${isAccept ? 'Positif et encourageant' : 'Respectueux et constructif'}`;
 
-    if (reason) {
-      prompt += `\n- Motif spécifique: ${reason}`;
+    if (reason && reason.trim()) {
+      prompt += `\n- MOTIF PRINCIPAL À MENTIONNER OBLIGATOIREMENT: ${reason}`;
+      prompt += `\n- Tu DOIS absolument expliquer ce motif dans ton message de manière claire`;
     }
     
-    if (instructions) {
+    if (instructions && instructions.trim()) {
       prompt += `\n- Instructions particulières: ${instructions}`;
     }
     
-    if (feedback) {
+    if (feedback && feedback.trim()) {
       prompt += `\n- RETOUR UTILISATEUR IMPORTANT À INCORPORER ABSOLUMENT: ${feedback}`;
       prompt += `\n- Tu DOIS prendre en compte ce retour et adapter ton message en conséquence.`;
     }
 
     prompt += `\n\nRédige un message ${isAccept ? 'd\'acceptation' : 'de refus'} professionnel et bienveillant. Le message doit être:
-- Clair et direct
-- ${isAccept ? 'Féliciter l\'utilisateur' : 'Respectueux malgré le refus'}
+- Clair et direct`;
+
+    if (reason && reason.trim()) {
+      prompt += `\n- OBLIGATOIREMENT mentionner et expliquer le motif: "${reason}"`;
+    }
+
+    prompt += `\n- ${isAccept ? 'Féliciter l\'utilisateur' : 'Respectueux malgré le refus'}
 - Personnalisé selon le contexte fourni`;
 
-    if (feedback) {
+    if (feedback && feedback.trim()) {
       prompt += `\n- IMPÉRATIVEMENT adapté selon le retour utilisateur fourni ci-dessus`;
     }
 
@@ -91,7 +97,11 @@ Contexte:
 
 ${isAccept ? 'Commence par féliciter l\'utilisateur pour son acceptation.' : 'Commence par remercier l\'utilisateur pour sa réponse.'}`;
 
-    if (feedback) {
+    if (reason && reason.trim()) {
+      prompt += `\n\nIMPORTANT: Le motif "${reason}" doit être clairement expliqué dans ta réponse. C'est la raison principale de l'${action}.`;
+    }
+
+    if (feedback && feedback.trim()) {
       prompt += `\n\nATTENTION: Assure-toi de bien incorporer le retour utilisateur "${feedback}" dans ta réponse. C'est une demande spécifique qui doit être prise en compte.`;
     }
 
@@ -100,7 +110,12 @@ ${isAccept ? 'Commence par féliciter l\'utilisateur pour son acceptation.' : 'C
       messages: [
         {
           role: 'system',
-          content: 'Tu es un assistant IA spécialisé dans la rédaction de messages professionnels et bienveillants pour des formulaires Discord. Tu dois toujours répondre en français et de manière appropriée au contexte. Quand un utilisateur te donne un retour spécifique, tu DOIS absolument en tenir compte dans ta réponse.'
+          content: `Tu es un assistant IA spécialisé dans la rédaction de messages professionnels et bienveillants pour des formulaires Discord. Tu dois toujours répondre en français et de manière appropriée au contexte. 
+
+RÈGLES IMPORTANTES:
+1. Quand un utilisateur te donne un retour spécifique, tu DOIS absolument en tenir compte dans ta réponse.
+2. Quand un motif/raison est fourni, tu DOIS l'expliquer clairement dans ton message.
+3. Le motif est la raison principale de l'acceptation/refus et doit être mentionné de façon évidente.`
         },
         {
           role: 'user',
