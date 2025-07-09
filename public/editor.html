@@ -343,6 +343,14 @@
             font-weight: 600;
             margin-left: 0.5rem;
         }
+        .checkbox-group input[type="checkbox"]:disabled + label {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .checkbox-group input[type="checkbox"]:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -426,7 +434,7 @@
             <label for="createThreads">Créer automatiquement un thread pour chaque réponse (pour discussion staff)</label>
         </div>
         <p style="font-size: 0.9rem; color: #666; margin-top: -0.5rem; margin-bottom: 1rem;">
-            📍 Un thread sera créé à partir de chaque message de réponse permettant aux membres du staff de discuter en privé de la candidature.
+            📍 Un thread sera créé à partir de chaque message de réponse permettant aux membres du staff de discuter en privé de la réponse.
         </p>
         <div class="form-group checkbox-group">
             <input type="checkbox" id="clartyProtection">
@@ -468,6 +476,13 @@
                 <input type="checkbox" id="customMessagesEnabled">
                 <label for="customMessagesEnabled">Permettre d'envoyer des messages personnalisés à l'acceptation/refus</label>
             </div>
+            <div id="aiResponseContainer" class="form-group checkbox-group hidden">
+                <input type="checkbox" id="aiResponseEnabled">
+                <label for="aiResponseEnabled">Proposer des réponses par intelligence artificielle <span class="premium-badge">Premium</span></label>
+            </div>
+            <p id="aiResponseDescription" class="hidden" style="font-size: 0.9rem; color: #666; margin-top: -0.5rem; margin-bottom: 1rem;">
+                🤖 Permet aux modérateurs de générer des réponses d'acceptation/refus avec l'IA lors de la révision des formulaires.
+            </p>
             <div class="form-group checkbox-group">
                 <input type="checkbox" id="showStatusMessage">
                 <label for="showStatusMessage">Afficher le message de statut (qui a accepté/refusé)</label>
@@ -587,6 +602,9 @@
             const reviewEnabledCheckbox = document.getElementById('reviewEnabled');
             const reviewOptionsContainer = document.getElementById('reviewOptionsContainer');
             const customMessagesEnabledCheckbox = document.getElementById('customMessagesEnabled');
+            const aiResponseContainer = document.getElementById('aiResponseContainer');
+            const aiResponseEnabledCheckbox = document.getElementById('aiResponseEnabled');
+            const aiResponseDescription = document.getElementById('aiResponseDescription');
             const showStatusMessageCheckbox = document.getElementById('showStatusMessage');
             const acceptMessageInput = document.getElementById('acceptMessage');
             const rejectMessageInput = document.getElementById('rejectMessage');
@@ -801,6 +819,7 @@
                     if (data.form.reviewOptions) {
                         reviewEnabledCheckbox.checked = data.form.reviewOptions.enabled;
                         customMessagesEnabledCheckbox.checked = data.form.reviewOptions.customMessagesEnabled || false;
+                        aiResponseEnabledCheckbox.checked = data.form.reviewOptions.aiResponseEnabled || false;
                         showStatusMessageCheckbox.checked = data.form.reviewOptions.showStatusMessage !== false; // true par défaut pour compatibilité
                         acceptMessageInput.value = data.form.reviewOptions.acceptMessage || '';
                         rejectMessageInput.value = data.form.reviewOptions.rejectMessage || '';
@@ -819,6 +838,9 @@
                             addQuestion(q.text, q.style);
                         });
                     }
+                    
+                    // Gérer l'affichage de l'option IA après que isPremium soit défini
+                    updateAIResponseVisibility();
                     
                     // Remplir les sélecteurs de salon
                     if (data.channels && data.channels.length > 0) {
@@ -914,6 +936,7 @@
                         reviewOptions: {
                             enabled: reviewEnabledCheckbox.checked,
                             customMessagesEnabled: customMessagesEnabledCheckbox.checked,
+                            aiResponseEnabled: aiResponseEnabledCheckbox.checked && isPremium,
                             showStatusMessage: showStatusMessageCheckbox.checked,
                             acceptMessage: acceptMessageInput.value,
                             rejectMessage: rejectMessageInput.value,
@@ -979,6 +1002,27 @@
                     // Réactiver le bouton
                     btnSave.disabled = false;
                     btnSave.textContent = originalText;
+                }
+            }
+            
+            // Fonction pour gérer l'affichage de l'option IA
+            function updateAIResponseVisibility() {
+                const isCustomMessagesEnabled = customMessagesEnabledCheckbox.checked;
+                const shouldShowAI = isCustomMessagesEnabled;
+                
+                aiResponseContainer.classList.toggle('hidden', !shouldShowAI);
+                aiResponseDescription.classList.toggle('hidden', !shouldShowAI);
+                
+                // Désactiver l'option si pas premium, sinon l'activer
+                if (shouldShowAI) {
+                    aiResponseEnabledCheckbox.disabled = !isPremium;
+                    if (!isPremium) {
+                        aiResponseEnabledCheckbox.checked = false;
+                    }
+                } else {
+                    // Si l'option n'est pas affichée, décocher et remettre l'état normal
+                    aiResponseEnabledCheckbox.checked = false;
+                    aiResponseEnabledCheckbox.disabled = false;
                 }
             }
             
@@ -1059,6 +1103,7 @@
                     if (generatedForm.reviewOptions) {
                         reviewEnabledCheckbox.checked = generatedForm.reviewOptions.enabled || false;
                         customMessagesEnabledCheckbox.checked = generatedForm.reviewOptions.customMessagesEnabled || false;
+                        aiResponseEnabledCheckbox.checked = generatedForm.reviewOptions.aiResponseEnabled || false;
                         showStatusMessageCheckbox.checked = generatedForm.reviewOptions.showStatusMessage !== false; // true par défaut
                         acceptMessageInput.value = generatedForm.reviewOptions.acceptMessage || '';
                         rejectMessageInput.value = generatedForm.reviewOptions.rejectMessage || '';
@@ -1066,6 +1111,7 @@
                         reviewOptionsContainer.classList.toggle('hidden', !generatedForm.reviewOptions.enabled);
                         const defaultMessagesContainer = document.getElementById('defaultMessagesContainer');
                         defaultMessagesContainer.classList.toggle('hidden', generatedForm.reviewOptions.customMessagesEnabled);
+                        updateAIResponseVisibility();
                     }
                     
                     // Supprimer toutes les questions existantes
@@ -1140,6 +1186,15 @@
             customMessagesEnabledCheckbox.addEventListener('change', () => {
                 const defaultMessagesContainer = document.getElementById('defaultMessagesContainer');
                 defaultMessagesContainer.classList.toggle('hidden', customMessagesEnabledCheckbox.checked);
+                updateAIResponseVisibility();
+            });
+            
+            // Event listener pour l'option IA
+            aiResponseEnabledCheckbox.addEventListener('change', () => {
+                if (aiResponseEnabledCheckbox.checked && !isPremium) {
+                    aiResponseEnabledCheckbox.checked = false;
+                    showAlert('Cette fonctionnalité est réservée aux serveurs Premium.', 'error');
+                }
             });
             
             btnPreview.addEventListener('click', function() {

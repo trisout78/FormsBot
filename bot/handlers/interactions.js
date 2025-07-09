@@ -27,9 +27,29 @@ async function handleInteractions(interaction, client) {
       return await handleResponseReview(interaction, client);
     }
 
+    // Gestionnaire pour les boutons de choix de réponse (manuelle ou IA)
+    if (interaction.isButton() && (interaction.customId.startsWith('manual_response_') || interaction.customId.startsWith('ai_response_'))) {
+      return await handleResponseChoice(interaction, client);
+    }
+
     // Gestionnaire pour les modals de messages personnalisés
     if (interaction.isModalSubmit() && interaction.customId.startsWith('custom_message_')) {
       return await handleCustomMessageModal(interaction, client);
+    }
+
+    // Gestionnaire pour les modals de paramètres IA
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('ai_params_')) {
+      return await handleAIParamsModal(interaction, client);
+    }
+
+    // Gestionnaire pour les modals de feedback IA
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('ai_feedback_')) {
+      return await handleAIFeedbackModal(interaction, client);
+    }
+
+    // Gestionnaire pour les boutons de réponse IA (envoyer, feedback, manuel)
+    if (interaction.isButton() && (interaction.customId.startsWith('send_ai_') || interaction.customId.startsWith('feedback_ai_') || interaction.customId.startsWith('manual_ai_'))) {
+      return await handleAIResponseButtons(interaction, client);
     }
 
     // Gestionnaire pour les boutons de soumission de formulaires
@@ -490,27 +510,56 @@ async function handleResponseReview(interaction, client) {
     });
   }
 
-  // Si messages personnalisés activés, afficher le modal
+  // Si messages personnalisés activés, proposer le choix entre manuel et IA
   if (form.reviewOptions.customMessagesEnabled) {
-    const modal = new ModalBuilder()
-      .setCustomId(`custom_message_${isAccept ? 'accept' : 'reject'}_${formId}_${interaction.message.id}_${userId}`)
-      .setTitle(`Message personnalisé (${isAccept ? 'Acceptation' : 'Refus'})`)
-      .addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId('custom_message_input')
-            .setLabel('Message à envoyer à l\'utilisateur')
-            .setPlaceholder(isAccept ? 
-              (form.reviewOptions.acceptMessage || 'Votre réponse a été acceptée.') : 
-              (form.reviewOptions.rejectMessage || 'Votre réponse a été refusée.')
-            )
-            .setStyle(TextInputStyle.Paragraph)
-            .setRequired(false)
-        )
-      );
+    // Vérifier si l'IA est activée et que le serveur est premium
+    if (form.reviewOptions.aiResponseEnabled && client.premiumGuilds.includes(interaction.guildId)) {
+      // Proposer le choix entre réponse manuelle et IA
+      const embed = new EmbedBuilder()
+        .setTitle(`${isAccept ? '✅ Acceptation' : '❌ Refus'} de la réponse`)
+        .setDescription('Comment souhaitez-vous rédiger votre message ?')
+        .setColor(isAccept ? 0x57F287 : 0xED4245);
 
-    await interaction.showModal(modal);
-    return;
+      const manualButton = new ButtonBuilder()
+        .setCustomId(`manual_response_${isAccept ? 'accept' : 'reject'}_${formId}_${interaction.message.id}_${userId}`)
+        .setLabel('✏️ Réponse manuelle')
+        .setStyle(ButtonStyle.Secondary);
+
+      const aiButton = new ButtonBuilder()
+        .setCustomId(`ai_response_${isAccept ? 'accept' : 'reject'}_${formId}_${interaction.message.id}_${userId}`)
+        .setLabel('🤖 Réponse IA')
+        .setStyle(ButtonStyle.Primary);
+
+      const row = new ActionRowBuilder().addComponents(manualButton, aiButton);
+
+      await interaction.reply({
+        embeds: [embed],
+        components: [row],
+        ephemeral: true
+      });
+      return;
+    } else {
+      // Pas d'IA disponible, afficher le modal classique
+      const modal = new ModalBuilder()
+        .setCustomId(`custom_message_${isAccept ? 'accept' : 'reject'}_${formId}_${interaction.message.id}_${userId}`)
+        .setTitle(`Message personnalisé (${isAccept ? 'Acceptation' : 'Refus'})`)
+        .addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('custom_message_input')
+              .setLabel('Message à envoyer à l\'utilisateur')
+              .setPlaceholder(isAccept ? 
+                (form.reviewOptions.acceptMessage || 'Votre réponse a été acceptée.') : 
+                (form.reviewOptions.rejectMessage || 'Votre réponse a été refusée.')
+              )
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(false)
+          )
+        );
+
+      await interaction.showModal(modal);
+      return;
+    }
   }
 
   // Traitement direct sans modal
@@ -587,13 +636,33 @@ async function processReviewAction(interaction, client, formId, userId, isAccept
     // Notifier l'utilisateur
     try {
       const targetUser = await client.users.fetch(userId);
-      const notificationMessage = customMessage || 
+      let notificationMessage = customMessage || 
         (isAccept ? 
           (form.reviewOptions.acceptMessage || 'Votre réponse a été acceptée.') :
           (form.reviewOptions.rejectMessage || 'Votre réponse a été refusée.')
         );
       
-      await targetUser.send(notificationMessage);
+      // Vérifier si la réponse a été générée par IA
+      const isAIGenerated = customMessage && client.aiResponses && 
+        Object.values(client.aiResponses).some(resp => resp.message === customMessage);
+      
+      // Créer un embed pour toutes les réponses
+      const embed = new EmbedBuilder()
+        .setTitle(`${isAccept ? '✅ Réponse acceptée' : '❌ Réponse refusée'}`)
+        .setDescription(notificationMessage)
+        .setColor(isAccept ? 0x57F287 : 0xED4245)
+        .setTimestamp()
+        .setFooter({ 
+          text: `Envoyée de ${interaction.guild.name} suite à la réponse au formulaire "${form.title}"`,
+          iconURL: interaction.guild.iconURL()
+        });
+      
+      // Ajouter l'icône du serveur comme thumbnail si disponible
+      if (interaction.guild.iconURL()) {
+        embed.setThumbnail(interaction.guild.iconURL());
+      }
+      
+      await targetUser.send({ embeds: [embed] });
       
       // Ajouter le rôle si spécifié
       const member = await interaction.guild.members.fetch(userId).catch(() => null);
@@ -612,15 +681,18 @@ async function processReviewAction(interaction, client, formId, userId, isAccept
     }
 
     // Log de l'action
+    const isAIGenerated = customMessage && client.aiResponses && 
+      Object.values(client.aiResponses).some(resp => resp.message === customMessage);
+    
     await logToWebhookAndConsole(
       isAccept ? "✅ Réponse acceptée" : "❌ Réponse refusée",
-      `**${interaction.user.username}** a ${isAccept ? 'accepté' : 'refusé'} la réponse de **<@${userId}>** au formulaire "${form.title}"`,
+      `**${interaction.user.username}** a ${isAccept ? 'accepté' : 'refusé'} la réponse de **<@${userId}>** au formulaire "${form.title}"${isAIGenerated ? ' (avec IA)' : ''}`,
       [
         { name: "Modérateur", value: `${interaction.user.username} (ID: ${interaction.user.id})`, inline: true },
         { name: "Action", value: isAccept ? "Acceptation" : "Refus", inline: true },
         { name: "Formulaire", value: form.title, inline: true },
         { name: "Serveur", value: interaction.guild.name, inline: false },
-        { name: "Message", value: customMessage ? `"${customMessage}"` : "Message par défaut", inline: false },
+        { name: "Message", value: customMessage ? `"${customMessage}"${isAIGenerated ? ' (IA)' : ''}` : "Message par défaut", inline: false },
         { name: "Lien", value: `[Voir la réponse](https://discord.com/channels/${interaction.guild.id}/${form.responseChannelId}/${targetMessageId})`, inline: false }
       ],
       isAccept ? 0x57F287 : 0xED4245
@@ -643,6 +715,341 @@ async function handleFormBuilder(interaction, client) {
   // Cette fonction est maintenant gérée dans formBuilder.js
   const { handleFormBuilder: formBuilderHandler } = require('./formBuilder.js');
   return await formBuilderHandler(interaction, client);
+}
+
+// Nouvelles fonctions pour gérer les interactions IA
+
+async function handleResponseChoice(interaction, client) {
+  const isManual = interaction.customId.startsWith('manual_response_');
+  const [, , action, formId, messageId, userId] = interaction.customId.split('_');
+  const isAccept = action === 'accept';
+  
+  const form = client.forms[interaction.guildId]?.[formId];
+  if (!form) {
+    return await interaction.reply({
+      content: 'Formulaire introuvable.',
+      ephemeral: true
+    });
+  }
+
+  if (isManual) {
+    // Afficher le modal de réponse manuelle
+    const modal = new ModalBuilder()
+      .setCustomId(`custom_message_${action}_${formId}_${messageId}_${userId}`)
+      .setTitle(`Message personnalisé (${isAccept ? 'Acceptation' : 'Refus'})`)
+      .addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('custom_message_input')
+            .setLabel('Message à envoyer à l\'utilisateur')
+            .setPlaceholder(isAccept ? 
+              (form.reviewOptions.acceptMessage || 'Votre réponse a été acceptée.') : 
+              (form.reviewOptions.rejectMessage || 'Votre réponse a été refusée.')
+            )
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(false)
+        )
+      );
+
+    await interaction.showModal(modal);
+  } else {
+    // Afficher le modal de paramètres IA
+    const modal = new ModalBuilder()
+      .setCustomId(`ai_params_${action}_${formId}_${messageId}_${userId}`)
+      .setTitle(`Paramètres IA (${isAccept ? 'Acceptation' : 'Refus'})`)
+      .addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('ai_reason')
+            .setLabel(`Motif ${isAccept ? 'd\'acceptation' : 'de refus'} (facultatif)`)
+            .setPlaceholder(isAccept ? 
+              'Ex: Réponse complète et bien rédigée' : 
+              'Ex: Réponse incomplète, informations manquantes')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(false)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('ai_instructions')
+            .setLabel('Instructions particulières (facultatif)')
+            .setPlaceholder('Ex: Mentionner les prochaines étapes, être encourageant, etc.')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(false)
+        )
+      );
+
+    await interaction.showModal(modal);
+  }
+}
+
+async function handleAIParamsModal(interaction, client) {
+  const [, , action, formId, messageId, userId] = interaction.customId.split('_');
+  const isAccept = action === 'accept';
+  const reason = interaction.fields.getTextInputValue('ai_reason');
+  const instructions = interaction.fields.getTextInputValue('ai_instructions');
+  
+  await interaction.deferReply({ ephemeral: true });
+  
+  const form = client.forms[interaction.guildId]?.[formId];
+  if (!form) {
+    return await interaction.editReply({
+      content: 'Formulaire introuvable.',
+      ephemeral: true
+    });
+  }
+
+  try {
+    // Vérifier la limite de taux IA
+    const { checkAIRateLimit } = require('../../utils/ai.js');
+    const rateLimitCheck = checkAIRateLimit(interaction.user.id);
+    
+    if (!rateLimitCheck.allowed) {
+      return await interaction.editReply({
+        content: `⏱️ Limite de requêtes IA atteinte. Vous pourrez refaire une demande dans ${rateLimitCheck.timeLeft} minutes.`,
+        ephemeral: true
+      });
+    }
+
+    // Générer la réponse IA
+    const { generateReviewResponse } = require('../../utils/ai.js');
+    const aiResult = await generateReviewResponse(
+      isAccept, 
+      form.title, 
+      reason || null, 
+      instructions || null
+    );
+
+    if (!aiResult.success) {
+      return await interaction.editReply({
+        content: '❌ Erreur lors de la génération de la réponse IA. Veuillez réessayer.',
+        ephemeral: true
+      });
+    }
+
+    // Afficher la réponse générée avec les options
+    const embed = new EmbedBuilder()
+  .setTitle(`🤖 Réponse générée par IA`)
+  .setDescription(`**Action:** ${isAccept ? 'Acceptation' : 'Refus'}\n**Formulaire:** ${form.title}`)
+  .addFields({
+    name: 'Message généré',
+    value: `\`\`\`\n${aiResult.message}\n\`\`\``,
+    inline: false
+  })
+  .setColor(isAccept ? 0x57F287 : 0xED4245)
+  .setFooter({ text: `Requêtes IA restantes: ${rateLimitCheck.remaining}` });
+
+    const sendButton = new ButtonBuilder()
+      .setCustomId(`send_ai_${action}_${formId}_${messageId}_${userId}`)
+      .setLabel('📤 Envoyer ce message')
+      .setStyle(ButtonStyle.Success);
+
+    const feedbackButton = new ButtonBuilder()
+      .setCustomId(`feedback_ai_${action}_${formId}_${messageId}_${userId}`)
+      .setLabel('🔄 Donner un retour')
+      .setStyle(ButtonStyle.Secondary);
+
+    const manualButton = new ButtonBuilder()
+      .setCustomId(`manual_ai_${action}_${formId}_${messageId}_${userId}`)
+      .setLabel('✏️ Réponse manuelle')
+      .setStyle(ButtonStyle.Primary);
+
+    const row = new ActionRowBuilder().addComponents(sendButton, feedbackButton, manualButton);
+
+    // Stocker la réponse générée pour une utilisation ultérieure
+    if (!client.aiResponses) client.aiResponses = {};
+    client.aiResponses[interaction.user.id] = {
+      message: aiResult.message,
+      formId,
+      messageId,
+      userId,
+      action,
+      isAccept,
+      reason,
+      instructions
+    };
+
+    await interaction.editReply({
+      embeds: [embed],
+      components: [row],
+      ephemeral: true
+    });
+
+  } catch (error) {
+    console.error('Erreur lors de la génération IA:', error);
+    await interaction.editReply({
+      content: '❌ Erreur lors de la génération de la réponse IA.',
+      ephemeral: true
+    });
+  }
+}
+
+async function handleAIFeedbackModal(interaction, client) {
+  const [, , action, formId, messageId, userId] = interaction.customId.split('_');
+  const feedback = interaction.fields.getTextInputValue('feedback_input');
+  
+  await interaction.deferReply({ ephemeral: true });
+  
+  const storedResponse = client.aiResponses?.[interaction.user.id];
+  if (!storedResponse) {
+    return await interaction.editReply({
+      content: '❌ Session expirée. Veuillez recommencer.',
+      ephemeral: true
+    });
+  }
+
+  try {
+    // Vérifier la limite de taux IA
+    const { checkAIRateLimit } = require('../../utils/ai.js');
+    const rateLimitCheck = checkAIRateLimit(interaction.user.id);
+    
+    if (!rateLimitCheck.allowed) {
+      return await interaction.editReply({
+        content: `⏱️ Limite de requêtes IA atteinte. Vous pourrez refaire une demande dans ${rateLimitCheck.timeLeft} minutes.`,
+        ephemeral: true
+      });
+    }
+
+    // Regénérer avec le feedback
+    const { generateReviewResponse } = require('../../utils/ai.js');
+    const aiResult = await generateReviewResponse(
+      storedResponse.isAccept, 
+      client.forms[interaction.guildId]?.[formId]?.title || 'Formulaire', 
+      storedResponse.reason, 
+      storedResponse.instructions,
+      feedback
+    );
+
+    if (!aiResult.success) {
+      return await interaction.editReply({
+        content: '❌ Erreur lors de la régénération de la réponse IA.',
+        ephemeral: true
+      });
+    }
+
+    // Mettre à jour la réponse stockée
+    client.aiResponses[interaction.user.id].message = aiResult.message;
+
+    // Afficher la nouvelle réponse
+    const embed = new EmbedBuilder()
+  .setTitle(`🤖 Réponse régénérée par IA`)
+  .setDescription(`**Action:** ${storedResponse.isAccept ? 'Acceptation' : 'Refus'}\n**Formulaire:** ${client.forms[interaction.guildId]?.[formId]?.title || 'Formulaire'}`)
+  .addFields({
+    name: 'Message régénéré',
+    value: `\`\`\`\n${aiResult.message}\n\`\`\``,
+    inline: false
+  })
+  .setColor(storedResponse.isAccept ? 0x57F287 : 0xED4245)
+  .setFooter({ text: `Requêtes IA restantes: ${rateLimitCheck.remaining}` });
+    const sendButton = new ButtonBuilder()
+      .setCustomId(`send_ai_${action}_${formId}_${messageId}_${userId}`)
+      .setLabel('📤 Envoyer ce message')
+      .setStyle(ButtonStyle.Success);
+
+    const feedbackButton = new ButtonBuilder()
+      .setCustomId(`feedback_ai_${action}_${formId}_${messageId}_${userId}`)
+      .setLabel('🔄 Donner un retour')
+      .setStyle(ButtonStyle.Secondary);
+
+    const manualButton = new ButtonBuilder()
+      .setCustomId(`manual_ai_${action}_${formId}_${messageId}_${userId}`)
+      .setLabel('✏️ Réponse manuelle')
+      .setStyle(ButtonStyle.Primary);
+
+    const row = new ActionRowBuilder().addComponents(sendButton, feedbackButton, manualButton);
+
+    await interaction.editReply({
+      embeds: [embed],
+      components: [row],
+      ephemeral: true
+    });
+
+  } catch (error) {
+    console.error('Erreur lors de la régénération IA:', error);
+    await interaction.editReply({
+      content: '❌ Erreur lors de la régénération de la réponse IA.',
+      ephemeral: true
+    });
+  }
+}
+
+async function handleAIResponseButtons(interaction, client) {
+  const [action, , subAction, formId, messageId, userId] = interaction.customId.split('_');
+  const storedResponse = client.aiResponses?.[interaction.user.id];
+  
+  if (!storedResponse) {
+    return await interaction.reply({
+      content: '❌ Session expirée. Veuillez recommencer.',
+      ephemeral: true
+    });
+  }
+
+  if (action === 'send') {
+    // Envoyer la réponse IA
+    await interaction.deferReply({ ephemeral: true });
+    
+    try {
+      await processReviewAction(
+        interaction, 
+        client, 
+        formId, 
+        userId, 
+        storedResponse.isAccept, 
+        storedResponse.message, 
+        messageId
+      );
+      
+      // Nettoyer la réponse stockée
+      delete client.aiResponses[interaction.user.id];
+      
+      await interaction.editReply({
+        content: `✅ Réponse ${storedResponse.isAccept ? 'acceptée' : 'refusée'} avec succès (générée par IA).`,
+        ephemeral: true
+      });
+    } catch (error) {
+      console.error('Erreur lors de l\'envoi de la réponse IA:', error);
+      await interaction.editReply({
+        content: '❌ Erreur lors de l\'envoi de la réponse.',
+        ephemeral: true
+      });
+    }
+  } else if (action === 'feedback') {
+    // Ouvrir le modal de feedback
+    const modal = new ModalBuilder()
+      .setCustomId(`ai_feedback_${subAction}_${formId}_${messageId}_${userId}`)
+      .setTitle('Retour sur la réponse IA')
+      .addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('feedback_input')
+            .setLabel('Que souhaitez-vous améliorer ?')
+            .setPlaceholder('Ex: Être plus encourageant, mentionner les prochaines étapes, etc.')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true)
+        )
+      );
+
+    await interaction.showModal(modal);
+  } else if (action === 'manual') {
+    // Ouvrir le modal de réponse manuelle
+    const modal = new ModalBuilder()
+      .setCustomId(`custom_message_${subAction}_${formId}_${messageId}_${userId}`)
+      .setTitle(`Message personnalisé (${storedResponse.isAccept ? 'Acceptation' : 'Refus'})`)
+      .addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('custom_message_input')
+            .setLabel('Message à envoyer à l\'utilisateur')
+            .setPlaceholder(storedResponse.message)
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(false)
+        )
+      );
+
+    // Nettoyer la réponse stockée
+    delete client.aiResponses[interaction.user.id];
+    
+    await interaction.showModal(modal);
+  }
 }
 
 module.exports = {

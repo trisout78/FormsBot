@@ -31,6 +31,7 @@ async function initializeBot() {
   client.commands = new Collection();
   client.formBuilders = new Map();
   client.tempResponses = new Map();
+  client.aiResponses = {}; // Stockage temporaire des réponses IA générées
   
   // Charger et assigner la liste premium
   loadPremiumList();

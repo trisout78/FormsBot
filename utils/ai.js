@@ -51,7 +51,80 @@ setInterval(() => {
   }
 }, 60 * 60 * 1000);
 
+async function generateReviewResponse(isAccept, formTitle, reason = null, instructions = null, feedback = null) {
+  try {
+    const action = isAccept ? 'acceptation' : 'refus';
+    const actionPast = isAccept ? 'acceptée' : 'refusée';
+    
+    let prompt = `Tu es un assistant IA qui aide à rédiger des messages ${isAccept ? 'd\'acceptation' : 'de refus'} pour des formulaires Discord de manière professionnelle et bienveillante.
+
+Contexte:
+- Formulaire: "${formTitle}"
+- Action: ${action}
+- Ton: ${isAccept ? 'Positif et encourageant' : 'Respectueux et constructif'}`;
+
+    if (reason) {
+      prompt += `\n- Motif spécifique: ${reason}`;
+    }
+    
+    if (instructions) {
+      prompt += `\n- Instructions particulières: ${instructions}`;
+    }
+    
+    if (feedback) {
+      prompt += `\n- Retour à incorporer: ${feedback}`;
+    }
+
+    prompt += `\n\nRédige un message ${isAccept ? 'd\'acceptation' : 'de refus'} professionnel et bienveillant. Le message doit être:
+- Clair et direct
+- ${isAccept ? 'Féliciter l\'utilisateur' : 'Respectueux malgré le refus'}
+- Personnalisé selon le contexte fourni
+- En français
+- Entre 50 et 200 mots
+- Sans utiliser de markdown (pas de **gras** ou *italique*)
+
+${isAccept ? 'Commence par féliciter l\'utilisateur pour son acceptation.' : 'Commence par remercier l\'utilisateur pour sa réponse.'}`;
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4.1-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'Tu es un assistant IA spécialisé dans la rédaction de messages professionnels et bienveillants pour des formulaires Discord. Tu dois toujours répondre en français et de manière appropriée au contexte.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      max_tokens: 300,
+      temperature: 0.7
+    });
+
+    const response = completion.choices[0].message.content.trim();
+    
+    // Nettoyer la réponse de tout markdown résiduel
+    const cleanResponse = response
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/__(.*?)__/g, '$1')
+      .replace(/_(.*?)_/g, '$1');
+
+    return {
+      success: true,
+      message: cleanResponse
+    };
+  } catch (error) {
+    console.error('Erreur lors de la génération de la réponse IA:', error);
+    return {
+      success: false,
+      error: 'Erreur lors de la génération de la réponse IA'
+    };
+  }
+}
+
 module.exports = {
   openai,
-  checkAIRateLimit
+  checkAIRateLimit,
+  generateReviewResponse
 };
