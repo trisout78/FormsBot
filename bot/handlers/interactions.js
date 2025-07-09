@@ -887,6 +887,8 @@ async function handleAIFeedbackModal(interaction, client) {
   const [, , action, formId, messageId, userId] = interaction.customId.split('_');
   const feedback = interaction.fields.getTextInputValue('feedback_input');
   
+  console.log(`[DEBUG] Feedback reçu de ${interaction.user.username}: "${feedback}"`);
+  
   await interaction.deferReply({ ephemeral: true });
   
   const storedResponse = client.aiResponses?.[interaction.user.id];
@@ -896,6 +898,9 @@ async function handleAIFeedbackModal(interaction, client) {
       ephemeral: true
     });
   }
+
+  console.log(`[DEBUG] Régénération avec feedback pour utilisateur ${interaction.user.username}`);
+  console.log(`[DEBUG] Paramètres: isAccept=${storedResponse.isAccept}, reason="${storedResponse.reason}", instructions="${storedResponse.instructions}", feedback="${feedback}"`);
 
   try {
     // Vérifier la limite de taux IA
@@ -919,6 +924,8 @@ async function handleAIFeedbackModal(interaction, client) {
       feedback
     );
 
+    console.log(`[DEBUG] Résultat IA: success=${aiResult.success}, message="${aiResult.message}"`);
+
     if (!aiResult.success) {
       return await interaction.editReply({
         content: '❌ Erreur lors de la régénération de la réponse IA.',
@@ -932,7 +939,7 @@ async function handleAIFeedbackModal(interaction, client) {
     // Afficher la nouvelle réponse
     const embed = new EmbedBuilder()
   .setTitle(`🤖 Réponse régénérée par IA`)
-  .setDescription(`**Action:** ${storedResponse.isAccept ? 'Acceptation' : 'Refus'}\n**Formulaire:** ${client.forms[interaction.guildId]?.[formId]?.title || 'Formulaire'}`)
+  .setDescription(`**Action:** ${storedResponse.isAccept ? 'Acceptation' : 'Refus'}\n**Formulaire:** ${client.forms[interaction.guildId]?.[formId]?.title || 'Formulaire'}\n**Retour pris en compte:** "${feedback}"`)
   .addFields({
     name: 'Message régénéré',
     value: `\`\`\`\n${aiResult.message}\n\`\`\``,

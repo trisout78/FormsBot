@@ -72,33 +72,43 @@ Contexte:
     }
     
     if (feedback) {
-      prompt += `\n- Retour à incorporer: ${feedback}`;
+      prompt += `\n- RETOUR UTILISATEUR IMPORTANT À INCORPORER ABSOLUMENT: ${feedback}`;
+      prompt += `\n- Tu DOIS prendre en compte ce retour et adapter ton message en conséquence.`;
     }
 
     prompt += `\n\nRédige un message ${isAccept ? 'd\'acceptation' : 'de refus'} professionnel et bienveillant. Le message doit être:
 - Clair et direct
 - ${isAccept ? 'Féliciter l\'utilisateur' : 'Respectueux malgré le refus'}
-- Personnalisé selon le contexte fourni
-- En français
+- Personnalisé selon le contexte fourni`;
+
+    if (feedback) {
+      prompt += `\n- IMPÉRATIVEMENT adapté selon le retour utilisateur fourni ci-dessus`;
+    }
+
+    prompt += `\n- En français
 - Entre 50 et 200 mots
 - Sans utiliser de markdown (pas de **gras** ou *italique*)
 
 ${isAccept ? 'Commence par féliciter l\'utilisateur pour son acceptation.' : 'Commence par remercier l\'utilisateur pour sa réponse.'}`;
+
+    if (feedback) {
+      prompt += `\n\nATTENTION: Assure-toi de bien incorporer le retour utilisateur "${feedback}" dans ta réponse. C'est une demande spécifique qui doit être prise en compte.`;
+    }
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
       messages: [
         {
           role: 'system',
-          content: 'Tu es un assistant IA spécialisé dans la rédaction de messages professionnels et bienveillants pour des formulaires Discord. Tu dois toujours répondre en français et de manière appropriée au contexte.'
+          content: 'Tu es un assistant IA spécialisé dans la rédaction de messages professionnels et bienveillants pour des formulaires Discord. Tu dois toujours répondre en français et de manière appropriée au contexte. Quand un utilisateur te donne un retour spécifique, tu DOIS absolument en tenir compte dans ta réponse.'
         },
         {
           role: 'user',
           content: prompt
         }
       ],
-      max_tokens: 300,
-      temperature: 0.7
+      max_tokens: 350,
+      temperature: 0.6
     });
 
     const response = completion.choices[0].message.content.trim();
