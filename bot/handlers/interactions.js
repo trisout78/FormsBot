@@ -816,7 +816,9 @@ async function handleAIParamsModal(interaction, client) {
       isAccept, 
       form.title, 
       reason || null, 
-      instructions || null
+      instructions || null,
+      null, // pas de feedback initial
+      form.embedText || null // Texte d'introduction du formulaire
     );
 
     if (!aiResult.success) {
@@ -911,12 +913,14 @@ async function handleAIFeedbackModal(interaction, client) {
 
     // Regénérer avec le feedback
     const { generateReviewResponse } = require('../../utils/ai.js');
+    const formData = client.forms[interaction.guildId]?.[formId];
     const aiResult = await generateReviewResponse(
       storedResponse.isAccept, 
-      client.forms[interaction.guildId]?.[formId]?.title || 'Formulaire', 
+      formData?.title || 'Formulaire', 
       storedResponse.reason, 
       storedResponse.instructions,
-      feedback
+      feedback,
+      formData?.embedText || null // Texte d'introduction du formulaire
     );
 
     if (!aiResult.success) {

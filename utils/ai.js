@@ -51,7 +51,7 @@ setInterval(() => {
   }
 }, 60 * 60 * 1000);
 
-async function generateReviewResponse(isAccept, formTitle, reason = null, instructions = null, feedback = null) {
+async function generateReviewResponse(isAccept, formTitle, reason = null, instructions = null, feedback = null, embedContent = null) {
   try {
     const action = isAccept ? 'acceptation' : 'refus';
     const actionPast = isAccept ? 'acceptée' : 'refusée';
@@ -61,6 +61,7 @@ async function generateReviewResponse(isAccept, formTitle, reason = null, instru
 Contexte:
 - Formulaire: "${formTitle}"
 - Action: ${action}
+- Description du formulaire: "${embedContent}"
 - Ton: ${isAccept ? 'Positif et encourageant' : 'Respectueux et constructif'}`;
 
     if (reason && reason.trim()) {
