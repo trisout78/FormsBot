@@ -24,6 +24,10 @@ function setupStaticRoutes(app, client) {
     res.sendFile(path.join(__dirname, '../../public', 'premium.html'));
   });
 
+  app.get('/webhook-status', isAuthenticated, (req, res) => {
+    res.sendFile(path.join(__dirname, '../../public', 'webhook-status.html'));
+  });
+
   // Routes publiques
   app.get('/error', (req, res) => {
     res.sendFile(path.join(__dirname, '../../public', 'error.html'));

@@ -4,6 +4,7 @@ const formRoutes = require('./forms.js');
 const apiRoutes = require('./api.js');
 const paymentRoutes = require('./payments.js');
 const staticRoutes = require('./static.js');
+const webhookRoutes = require('./webhooks.js');
 
 function setupRoutes(app, client) {
   // Routes d'authentification
@@ -17,6 +18,9 @@ function setupRoutes(app, client) {
   
   // Routes de paiement
   paymentRoutes(app, client);
+  
+  // Routes de webhooks
+  webhookRoutes.setupWebhookRoutes(app, client);
   
   // Routes statiques
   staticRoutes(app, client);

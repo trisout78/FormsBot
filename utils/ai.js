@@ -28,19 +28,62 @@ function checkAIRateLimit(userId, guildId, isPremium = false) {
       count: 1,
       resetTime: now + resetDuration
     });
+    
+    // Récupérer les crédits de vote pour l'affichage
+    let voteCredits = 0;
+    try {
+      const { getUserVoteCredits } = require('../web/routes/webhooks.js');
+      voteCredits = getUserVoteCredits(userId);
+    } catch (error) {
+      console.error('Erreur lors de la récupération des crédits de vote:', error);
+    }
+    
     return { 
       allowed: true, 
       remaining: maxRequests - 1, 
       resetTime: now + resetDuration,
-      isPremium: isPremium
+      isPremium: isPremium,
+      voteCreditsAvailable: voteCredits
     };
   }
   
-  // Si limite atteinte
+  // Si limite atteinte, vérifier les crédits de vote
   if (userLimit.count >= maxRequests) {
+    // Essayer d'utiliser des crédits de vote
+    try {
+      const { getUserVoteCredits, consumeVoteCredits } = require('../web/routes/webhooks.js');
+      const voteCredits = getUserVoteCredits(userId);
+      
+      if (voteCredits > 0) {
+        // Utiliser 1 crédit par requête IA supplémentaire
+        if (consumeVoteCredits(userId, 1)) {
+          console.log(`Utilisateur ${userId} a utilisé 1 crédit de vote (${voteCredits - 1} restants)`);
+          return { 
+            allowed: true, 
+            remaining: voteCredits - 1, // Afficher le nombre de requêtes restantes avec les crédits
+            resetTime: userLimit.resetTime,
+            isPremium: isPremium,
+            usedVoteCredit: true,
+            voteCreditsRemaining: voteCredits - 1
+          };
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification des crédits de vote:', error);
+    }
+    
     const timeLeft = isPremium ? 
       Math.ceil((userLimit.resetTime - now) / (60 * 1000)) : // minutes pour premium
       Math.ceil((userLimit.resetTime - now) / (60 * 60 * 1000)); // heures pour gratuit
+    
+    // Récupérer les crédits de vote pour l'affichage même en cas de limite atteinte
+    let voteCredits = 0;
+    try {
+      const { getUserVoteCredits } = require('../web/routes/webhooks.js');
+      voteCredits = getUserVoteCredits(userId);
+    } catch (error) {
+      console.error('Erreur lors de la récupération des crédits de vote:', error);
+    }
     
     return { 
       allowed: false, 
@@ -48,7 +91,8 @@ function checkAIRateLimit(userId, guildId, isPremium = false) {
       resetTime: userLimit.resetTime,
       timeLeft: timeLeft,
       timeUnit: isPremium ? 'minutes' : 'heures',
-      isPremium: isPremium
+      isPremium: isPremium,
+      voteCreditsAvailable: voteCredits
     };
   }
   
@@ -56,11 +100,21 @@ function checkAIRateLimit(userId, guildId, isPremium = false) {
   userLimit.count++;
   guildLimits.set(userId, userLimit);
   
+  // Récupérer les crédits de vote pour l'affichage
+  let voteCredits = 0;
+  try {
+    const { getUserVoteCredits } = require('../web/routes/webhooks.js');
+    voteCredits = getUserVoteCredits(userId);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des crédits de vote:', error);
+  }
+  
   return { 
     allowed: true, 
     remaining: maxRequests - userLimit.count, 
     resetTime: userLimit.resetTime,
-    isPremium: isPremium
+    isPremium: isPremium,
+    voteCreditsAvailable: voteCredits
   };
 }
 

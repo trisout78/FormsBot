@@ -52,6 +52,11 @@ async function handleInteractions(interaction, client) {
       return await handleAIResponseButtons(interaction, client);
     }
 
+    // Gestionnaire pour le bouton de vérification des crédits de vote
+    if (interaction.isButton() && interaction.customId === 'check_vote_credits') {
+      return await handleVoteCreditsCheck(interaction, client);
+    }
+
     // Gestionnaire pour les boutons de soumission de formulaires
     if (interaction.isButton() && (interaction.customId.startsWith('fill_') || interaction.customId.startsWith('continue_form_'))) {
       return await handleFormSubmission(interaction, client);
@@ -835,8 +840,24 @@ async function handleAIParamsModal(interaction, client) {
     
     if (!rateLimitCheck.allowed) {
       const timeUnit = rateLimitCheck.isPremium ? 'minutes' : 'heures';
+      let errorMessage = `⏱️ Limite de requêtes IA atteinte pour ce serveur. Vous pourrez refaire une demande dans ${rateLimitCheck.timeLeft} ${timeUnit}.`;
+      
+      // Ajouter des informations sur les crédits de vote
+      try {
+        const { getUserVoteCredits } = require('../../web/routes/webhooks.js');
+        const voteCredits = getUserVoteCredits(interaction.user.id);
+        
+        if (voteCredits > 0) {
+          errorMessage += `\n\n💡 **Astuce :** Vous avez ${voteCredits} crédit${voteCredits > 1 ? 's' : ''} de vote ! Chaque crédit permet 1 requête IA supplémentaire.`;
+        } else {
+          errorMessage += `\n\n🗳️ **Obtenez plus de crédits :** Votez pour le bot sur Top.gg pour gagner des crédits IA !`;
+        }
+      } catch (error) {
+        // Ignorer les erreurs de récupération des crédits
+      }
+      
       return await interaction.editReply({
-        content: `⏱️ Limite de requêtes IA atteinte pour ce serveur. Vous pourrez refaire une demande dans ${rateLimitCheck.timeLeft} ${timeUnit}.`,
+        content: errorMessage,
         ephemeral: true
       });
     }
@@ -870,7 +891,7 @@ async function handleAIParamsModal(interaction, client) {
       })
       .setColor(isAccept ? 0x57F287 : 0xED4245)
       .setFooter({ 
-        text: `Requêtes IA restantes: ${rateLimitCheck.remaining}/${rateLimitCheck.isPremium ? '20 par heure' : '3 par jour'} (par serveur)` 
+        text: `Requêtes IA restantes: ${rateLimitCheck.remaining}/${rateLimitCheck.isPremium ? '20 par heure' : '3 par jour'} (par serveur) | Crédits de vote: ${rateLimitCheck.usedVoteCredit ? `${rateLimitCheck.voteCreditsRemaining} (utilisé)` : `${rateLimitCheck.voteCreditsAvailable || 0} disponibles`}` 
       });
 
     const sendButton = new ButtonBuilder()
@@ -940,8 +961,24 @@ async function handleAIFeedbackModal(interaction, client) {
     
     if (!rateLimitCheck.allowed) {
       const timeUnit = rateLimitCheck.isPremium ? 'minutes' : 'heures';
+      let errorMessage = `⏱️ Limite de requêtes IA atteinte pour ce serveur. Vous pourrez refaire une demande dans ${rateLimitCheck.timeLeft} ${timeUnit}.`;
+      
+      // Ajouter des informations sur les crédits de vote
+      try {
+        const { getUserVoteCredits } = require('../../web/routes/webhooks.js');
+        const voteCredits = getUserVoteCredits(interaction.user.id);
+        
+        if (voteCredits > 0) {
+          errorMessage += `\n\n💡 **Astuce :** Vous avez ${voteCredits} crédit${voteCredits > 1 ? 's' : ''} de vote ! Chaque crédit permet 1 requête IA supplémentaire.`;
+        } else {
+          errorMessage += `\n\n🗳️ **Obtenez plus de crédits :** Votez pour le bot sur Top.gg pour gagner des crédits IA !`;
+        }
+      } catch (error) {
+        // Ignorer les erreurs de récupération des crédits
+      }
+      
       return await interaction.editReply({
-        content: `⏱️ Limite de requêtes IA atteinte pour ce serveur. Vous pourrez refaire une demande dans ${rateLimitCheck.timeLeft} ${timeUnit}.`,
+        content: errorMessage,
         ephemeral: true
       });
     }
@@ -978,7 +1015,7 @@ async function handleAIFeedbackModal(interaction, client) {
     inline: false
   })
   .setColor(storedResponse.isAccept ? 0x57F287 : 0xED4245)      .setFooter({ 
-        text: `Requêtes IA restantes: ${rateLimitCheck.remaining}/${rateLimitCheck.isPremium ? '20 (Premium)' : '3 (Gratuit)'} (par serveur)` 
+        text: `Requêtes IA restantes: ${rateLimitCheck.remaining}/${rateLimitCheck.isPremium ? '20 (Premium)' : '3 (Gratuit)'} (par serveur) | Crédits de vote: ${rateLimitCheck.usedVoteCredit ? `${rateLimitCheck.voteCreditsRemaining} (utilisé)` : `${rateLimitCheck.voteCreditsAvailable || 0} disponibles`}` 
       });
     const sendButton = new ButtonBuilder()
       .setCustomId(`send_ai_${action}_${formId}_${messageId}_${userId}`)
@@ -1088,6 +1125,59 @@ async function handleAIResponseButtons(interaction, client) {
     delete client.aiResponses[interaction.user.id];
     
     await interaction.showModal(modal);
+  }
+}
+
+async function handleVoteCreditsCheck(interaction, client) {
+  try {
+    await interaction.deferReply({ ephemeral: true });
+
+    // Récupérer les crédits de vote de l'utilisateur
+    const { getUserVoteCredits } = require('../../web/routes/webhooks.js');
+    const voteCredits = getUserVoteCredits(interaction.user.id);
+    
+    // Calculer les requêtes IA possibles avec les crédits
+    const aiRequestsFromCredits = Math.floor(voteCredits * 2);
+    
+    const embed = new EmbedBuilder()
+      .setTitle('💰 Vos Crédits de Vote')
+      .setColor(0x00D4AA)
+      .setThumbnail(interaction.user.displayAvatarURL())
+      .setTimestamp();
+
+    if (voteCredits > 0) {
+      embed.setDescription(`Vous avez **${voteCredits} crédit${voteCredits > 1 ? 's' : ''} de vote** !`)
+        .addFields(
+          {
+            name: '🤖 Requêtes IA disponibles',
+            value: `**${aiRequestsFromCredits}** requêtes supplémentaires`,
+            inline: true
+          },
+          {
+            name: '⚡ Utilisation',
+            value: 'Automatique quand vous dépassez vos limites',
+            inline: true
+          }
+        );
+    } else {
+      embed.setDescription('Vous n\'avez actuellement aucun crédit de vote.')
+        .addFields({
+          name: '🗳️ Votez pour en obtenir !',
+          value: `[Cliquer ici pour voter](https://top.gg/bot/${client.user.id}/vote)`,
+          inline: false
+        });
+    }
+
+    await interaction.editReply({
+      embeds: [embed]
+    });
+
+  } catch (error) {
+    console.error('Erreur lors de la vérification des crédits:', error);
+    await interaction.editReply({
+      content: 'Erreur lors de la récupération de vos crédits de vote.',
+      ephemeral: true
+    });
   }
 }
 
