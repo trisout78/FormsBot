@@ -478,7 +478,7 @@
             </div>
             <div id="aiResponseContainer" class="form-group checkbox-group hidden">
                 <input type="checkbox" id="aiResponseEnabled">
-                <label for="aiResponseEnabled">Proposer des réponses par intelligence artificielle <span class="premium-badge">Premium</span></label>
+                <label for="aiResponseEnabled">Proposer des réponses par intelligence artificielle <span class="premium-badge" style="background: linear-gradient(135deg, #57F287, #43AA8B); color: #000;">Expérimental</span></label>
             </div>
             <p id="aiResponseDescription" class="hidden" style="font-size: 0.9rem; color: #666; margin-top: -0.5rem; margin-bottom: 1rem;">
                 🤖 Permet aux modérateurs de générer des réponses d'acceptation/refus avec l'IA lors de la révision des formulaires.
@@ -514,6 +514,40 @@
         <div class="btn-group">
             <button id="btnPreview" class="button-secondary">Aperçu</button>
             <button id="btnSave" class="button-success">Enregistrer le formulaire</button>
+        </div>
+    </div>
+
+    <!-- Modal d'information IA expérimentale -->
+    <div id="aiInfoModal" class="ai-modal hidden">
+        <div class="ai-modal-content">
+            <h3>🤖 Feature IA Expérimentale</h3>
+            <p style="margin-bottom: 1rem;">
+                <strong>⚠️ Cette fonctionnalité est actuellement en phase expérimentale et temporairement gratuite.</strong>
+            </p>
+            <div style="background: #f8f9fa; padding: 1rem; border-radius: 5px; margin-bottom: 1rem;">
+                <h4 style="margin-top: 0; color: #5865F2;">📊 Limites d'utilisation :</h4>
+                <ul style="margin-bottom: 0;">
+                    <li><strong>Utilisateurs gratuits :</strong> 3 requêtes par jour</li>
+                    <li><strong>Utilisateurs premium :</strong> 20 requêtes par heure</li>
+                </ul>
+            </div>
+            <div style="background: #fff3cd; padding: 1rem; border-radius: 5px; margin-bottom: 1rem; border-left: 4px solid #ffc107;">
+                <h4 style="margin-top: 0; color: #856404;">🔮 Avenir de la feature :</h4>
+                <p style="margin-bottom: 0; color: #856404;">
+                    Cette fonctionnalité deviendra probablement <strong>premium uniquement</strong> dans le futur, 
+                    en fonction du coût d'utilisation et de la demande.
+                </p>
+            </div>
+            <p style="font-size: 0.9rem; color: #666; margin-bottom: 1.5rem;">
+                L'IA vous aidera à rédiger des messages personnalisés et professionnels pour accepter ou refuser les réponses aux formulaires.
+            </p>
+            <div class="btn-group">
+                <button id="aiInfoCancel" class="button-secondary">Annuler</button>
+                <button id="aiInfoConfirm" class="ai-generation">
+                    <span>🤖</span>
+                    Activer la feature IA
+                </button>
+            </div>
         </div>
     </div>
 
@@ -629,6 +663,11 @@
             const aiCount = document.getElementById('aiCount');
             const aiCancel = document.getElementById('aiCancel');
             const aiGenerate = document.getElementById('aiGenerate');
+            
+            // Éléments du modal d'information IA
+            const aiInfoModal = document.getElementById('aiInfoModal');
+            const aiInfoCancel = document.getElementById('aiInfoCancel');
+            const aiInfoConfirm = document.getElementById('aiInfoConfirm');
             
             // Variable pour stocker si le serveur est premium
             let isPremium = false;
@@ -936,7 +975,7 @@
                         reviewOptions: {
                             enabled: reviewEnabledCheckbox.checked,
                             customMessagesEnabled: customMessagesEnabledCheckbox.checked,
-                            aiResponseEnabled: aiResponseEnabledCheckbox.checked && isPremium,
+                            aiResponseEnabled: aiResponseEnabledCheckbox.checked, // Plus de vérification premium
                             showStatusMessage: showStatusMessageCheckbox.checked,
                             acceptMessage: acceptMessageInput.value,
                             rejectMessage: rejectMessageInput.value,
@@ -1013,16 +1052,12 @@
                 aiResponseContainer.classList.toggle('hidden', !shouldShowAI);
                 aiResponseDescription.classList.toggle('hidden', !shouldShowAI);
                 
-                // Désactiver l'option si pas premium, sinon l'activer
+                // L'option IA est maintenant disponible pour tous (expérimentale)
                 if (shouldShowAI) {
-                    aiResponseEnabledCheckbox.disabled = !isPremium;
-                    if (!isPremium) {
-                        aiResponseEnabledCheckbox.checked = false;
-                    }
-                } else {
-                    // Si l'option n'est pas affichée, décocher et remettre l'état normal
-                    aiResponseEnabledCheckbox.checked = false;
                     aiResponseEnabledCheckbox.disabled = false;
+                } else {
+                    // Si l'option n'est pas affichée, décocher
+                    aiResponseEnabledCheckbox.checked = false;
                 }
             }
             
@@ -1191,10 +1226,24 @@
             
             // Event listener pour l'option IA
             aiResponseEnabledCheckbox.addEventListener('change', () => {
-                if (aiResponseEnabledCheckbox.checked && !isPremium) {
-                    aiResponseEnabledCheckbox.checked = false;
-                    showAlert('Cette fonctionnalité est réservée aux serveurs Premium.', 'error');
+                if (aiResponseEnabledCheckbox.checked) {
+                    // Afficher la popup d'information
+                    document.getElementById('aiInfoModal').classList.remove('hidden');
+                } else {
+                    // Si décoché, pas besoin de popup
                 }
+            });
+            
+            // Gérer la popup d'information IA
+            document.getElementById('aiInfoCancel').addEventListener('click', () => {
+                document.getElementById('aiInfoModal').classList.add('hidden');
+                aiResponseEnabledCheckbox.checked = false; // Décocher si annulé
+            });
+            
+            document.getElementById('aiInfoConfirm').addEventListener('click', () => {
+                document.getElementById('aiInfoModal').classList.add('hidden');
+                // Garder la checkbox cochée car l'utilisateur a confirmé
+                showAlert('Feature IA activée ! Vous pourrez l\'utiliser lors de la révision des réponses.', 'success');
             });
             
             btnPreview.addEventListener('click', function() {

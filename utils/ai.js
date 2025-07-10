@@ -4,49 +4,78 @@ const { config } = require('./config.js');
 // Initialize OpenAI
 const openai = new OpenAI({ apiKey: config.openai.apiKey });
 
-// Rate limiting pour l'IA - 10 requêtes par heure par utilisateur
-const aiRateLimit = new Map(); // userId -> { count, resetTime }
+// Rate limiting pour l'IA - différencié par type d'utilisateur ET par serveur
+const aiRateLimit = new Map(); // guildId -> userId -> { count, resetTime }
 
-function checkAIRateLimit(userId) {
+function checkAIRateLimit(userId, guildId, isPremium = false) {
   const now = Date.now();
-  const userLimit = aiRateLimit.get(userId);
   
-  // Si pas d'entrée ou si l'heure est passée, reset
+  // Initialiser la structure pour le serveur si elle n'existe pas
+  if (!aiRateLimit.has(guildId)) {
+    aiRateLimit.set(guildId, new Map());
+  }
+  
+  const guildLimits = aiRateLimit.get(guildId);
+  const userLimit = guildLimits.get(userId);
+  
+  // Définir les limites selon le type d'utilisateur
+  const maxRequests = isPremium ? 20 : 3; // Premium: 20/heure, Gratuit: 3/jour
+  const resetDuration = isPremium ? (60 * 60 * 1000) : (24 * 60 * 60 * 1000); // 1h pour premium, 24h pour gratuit
+  
+  // Si pas d'entrée ou si la période est passée, reset
   if (!userLimit || now > userLimit.resetTime) {
-    aiRateLimit.set(userId, {
+    guildLimits.set(userId, {
       count: 1,
-      resetTime: now + (60 * 60 * 1000) // 1 heure
+      resetTime: now + resetDuration
     });
-    return { allowed: true, remaining: 9, resetTime: now + (60 * 60 * 1000) };
+    return { 
+      allowed: true, 
+      remaining: maxRequests - 1, 
+      resetTime: now + resetDuration,
+      isPremium: isPremium
+    };
   }
   
   // Si limite atteinte
-  if (userLimit.count >= 10) {
+  if (userLimit.count >= maxRequests) {
+    const timeLeft = isPremium ? 
+      Math.ceil((userLimit.resetTime - now) / (60 * 1000)) : // minutes pour premium
+      Math.ceil((userLimit.resetTime - now) / (60 * 60 * 1000)); // heures pour gratuit
+    
     return { 
       allowed: false, 
       remaining: 0, 
       resetTime: userLimit.resetTime,
-      timeLeft: Math.ceil((userLimit.resetTime - now) / (60 * 1000)) // minutes restantes
+      timeLeft: timeLeft,
+      timeUnit: isPremium ? 'minutes' : 'heures',
+      isPremium: isPremium
     };
   }
   
   // Incrémenter le compteur
   userLimit.count++;
-  aiRateLimit.set(userId, userLimit);
+  guildLimits.set(userId, userLimit);
   
   return { 
     allowed: true, 
-    remaining: 10 - userLimit.count, 
-    resetTime: userLimit.resetTime 
+    remaining: maxRequests - userLimit.count, 
+    resetTime: userLimit.resetTime,
+    isPremium: isPremium
   };
 }
 
 // Nettoyer les anciennes entrées toutes les heures
 setInterval(() => {
   const now = Date.now();
-  for (const [userId, data] of aiRateLimit.entries()) {
-    if (now > data.resetTime) {
-      aiRateLimit.delete(userId);
+  for (const [guildId, guildLimits] of aiRateLimit.entries()) {
+    for (const [userId, data] of guildLimits.entries()) {
+      if (now > data.resetTime) {
+        guildLimits.delete(userId);
+      }
+    }
+    // Supprimer les serveurs vides
+    if (guildLimits.size === 0) {
+      aiRateLimit.delete(guildId);
     }
   }
 }, 60 * 60 * 1000);

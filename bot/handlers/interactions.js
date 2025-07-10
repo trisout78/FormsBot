@@ -270,7 +270,7 @@ async function handleFormModalSubmission(interaction, client) {
     // Il y a d'autres étapes, envoyer un message pour continuer
     const nextStep = step + 1;
     const embed = new EmbedBuilder()
-      .setColor(0xED4245) // Rouge
+      .setColor(0x3498db) // Bleu pour progression
       .setTitle(`Étape ${step}/${totalSteps} terminée`)
       .setDescription(`Vous avez terminé l\'étape ${step} sur ${totalSteps}. Cliquez sur le bouton ci-dessous pour continuer.`);
 
@@ -512,23 +512,52 @@ async function handleResponseReview(interaction, client) {
 
   // Si messages personnalisés activés, proposer le choix entre manuel et IA
   if (form.reviewOptions.customMessagesEnabled) {
-    // Vérifier si l'IA est activée et que le serveur est premium
-    if (form.reviewOptions.aiResponseEnabled && client.premiumGuilds.includes(interaction.guildId)) {
+    // Vérifier si l'IA est activée (feature temporairement gratuite)
+    if (form.reviewOptions.aiResponseEnabled) {
       // Proposer le choix entre réponse manuelle et IA
       const embed = new EmbedBuilder()
         .setTitle(`${isAccept ? '✅ Acceptation' : '❌ Refus'} de la réponse`)
-        .setDescription('Comment souhaitez-vous rédiger votre message ?')
-        .setColor(isAccept ? 0x57F287 : 0xED4245);
+        .setDescription(`Vous êtes sur le point de **${isAccept ? 'accepter' : 'refuser'}** cette réponse au formulaire "${form.title}".`)
+        .addFields(
+          {
+            name: '✏️ Réponse Manuelle',
+            value: '• Rédigez votre propre message\n• Contrôle total du contenu\n• Approche personnalisée',
+            inline: true
+          },
+          {
+            name: '🤖 Réponse IA (Expérimental)',
+            value: '• Message généré automatiquement\n• Professionnel et cohérent\n• Gain de temps considérable',
+            inline: true
+          },
+          {
+            name: '\u200b',
+            value: '\u200b',
+            inline: false
+          },
+          {
+            name: '⚠️ Limitations de l\'IA',
+            value: `**Temporairement gratuite** pour tous !\n\n📊 **Limites d'utilisation (par serveur) :**\n• 🆓 **Gratuit :** 3 requêtes/jour\n• 💎 **Premium :** 20 requêtes/heure\n\n🔮 **Avenir :** Cette feature deviendra probablement premium selon son coût d'utilisation.`,
+            inline: false
+          }
+        )
+        .setColor(isAccept ? 0x57F287 : 0xED4245)
+        .setFooter({ 
+          text: `Formulaire: ${form.title} • Choisissez votre méthode de réponse`,
+          iconURL: interaction.guild.iconURL()
+        })
+        .setTimestamp();
 
       const manualButton = new ButtonBuilder()
         .setCustomId(`manual_response_${isAccept ? 'accept' : 'reject'}_${formId}_${interaction.message.id}_${userId}`)
-        .setLabel('✏️ Réponse manuelle')
-        .setStyle(ButtonStyle.Secondary);
+        .setLabel('Réponse Manuelle')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('✏️');
 
       const aiButton = new ButtonBuilder()
         .setCustomId(`ai_response_${isAccept ? 'accept' : 'reject'}_${formId}_${interaction.message.id}_${userId}`)
-        .setLabel('🤖 Réponse IA')
-        .setStyle(ButtonStyle.Primary);
+        .setLabel('Réponse IA (Expérimental)')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('🤖');
 
       const row = new ActionRowBuilder().addComponents(manualButton, aiButton);
 
@@ -801,11 +830,13 @@ async function handleAIParamsModal(interaction, client) {
   try {
     // Vérifier la limite de taux IA
     const { checkAIRateLimit } = require('../../utils/ai.js');
-    const rateLimitCheck = checkAIRateLimit(interaction.user.id);
+    const isPremium = client.premiumGuilds.includes(interaction.guildId);
+    const rateLimitCheck = checkAIRateLimit(interaction.user.id, interaction.guildId, isPremium);
     
     if (!rateLimitCheck.allowed) {
+      const timeUnit = rateLimitCheck.isPremium ? 'minutes' : 'heures';
       return await interaction.editReply({
-        content: `⏱️ Limite de requêtes IA atteinte. Vous pourrez refaire une demande dans ${rateLimitCheck.timeLeft} minutes.`,
+        content: `⏱️ Limite de requêtes IA atteinte pour ce serveur. Vous pourrez refaire une demande dans ${rateLimitCheck.timeLeft} ${timeUnit}.`,
         ephemeral: true
       });
     }
@@ -830,15 +861,17 @@ async function handleAIParamsModal(interaction, client) {
 
     // Afficher la réponse générée avec les options
     const embed = new EmbedBuilder()
-  .setTitle(`🤖 Réponse générée par IA`)
-  .setDescription(`**Action:** ${isAccept ? 'Acceptation' : 'Refus'}\n**Formulaire:** ${form.title}`)
-  .addFields({
-    name: 'Message généré',
-    value: `\`\`\`\n${aiResult.message}\n\`\`\``,
-    inline: false
-  })
-  .setColor(isAccept ? 0x57F287 : 0xED4245)
-  .setFooter({ text: `Requêtes IA restantes: ${rateLimitCheck.remaining}` });
+      .setTitle(`🤖 Réponse générée par IA`)
+      .setDescription(`**Action:** ${isAccept ? 'Acceptation' : 'Refus'}\n**Formulaire:** ${form.title}`)
+      .addFields({
+        name: 'Message généré',
+        value: `\`\`\`\n${aiResult.message}\n\`\`\``,
+        inline: false
+      })
+      .setColor(isAccept ? 0x57F287 : 0xED4245)
+      .setFooter({ 
+        text: `Requêtes IA restantes: ${rateLimitCheck.remaining}/${rateLimitCheck.isPremium ? '20 par heure' : '3 par jour'} (par serveur)` 
+      });
 
     const sendButton = new ButtonBuilder()
       .setCustomId(`send_ai_${action}_${formId}_${messageId}_${userId}`)
@@ -902,11 +935,13 @@ async function handleAIFeedbackModal(interaction, client) {
   try {
     // Vérifier la limite de taux IA
     const { checkAIRateLimit } = require('../../utils/ai.js');
-    const rateLimitCheck = checkAIRateLimit(interaction.user.id);
+    const isPremium = client.premiumGuilds.includes(interaction.guildId);
+    const rateLimitCheck = checkAIRateLimit(interaction.user.id, interaction.guildId, isPremium);
     
     if (!rateLimitCheck.allowed) {
+      const timeUnit = rateLimitCheck.isPremium ? 'minutes' : 'heures';
       return await interaction.editReply({
-        content: `⏱️ Limite de requêtes IA atteinte. Vous pourrez refaire une demande dans ${rateLimitCheck.timeLeft} minutes.`,
+        content: `⏱️ Limite de requêtes IA atteinte pour ce serveur. Vous pourrez refaire une demande dans ${rateLimitCheck.timeLeft} ${timeUnit}.`,
         ephemeral: true
       });
     }
@@ -935,15 +970,16 @@ async function handleAIFeedbackModal(interaction, client) {
 
     // Afficher la nouvelle réponse
     const embed = new EmbedBuilder()
-  .setTitle(`🤖 Réponse régénérée par IA`)
-  .setDescription(`**Action:** ${storedResponse.isAccept ? 'Acceptation' : 'Refus'}\n**Formulaire:** ${client.forms[interaction.guildId]?.[formId]?.title || 'Formulaire'}\n**Retour pris en compte:** "${feedback}"`)
-  .addFields({
-    name: 'Message régénéré',
+      .setTitle(`🤖 Réponse régénérée par IA`)
+      .setDescription(`**Action:** ${storedResponse.isAccept ? 'Acceptation' : 'Refus'}\n**Formulaire:** ${client.forms[interaction.guildId]?.[formId]?.title || 'Formulaire'}\n**Retour pris en compte:** "${feedback}"`)
+      .addFields({
+        name: 'Message régénéré',
     value: `\`\`\`\n${aiResult.message}\n\`\`\``,
     inline: false
   })
-  .setColor(storedResponse.isAccept ? 0x57F287 : 0xED4245)
-  .setFooter({ text: `Requêtes IA restantes: ${rateLimitCheck.remaining}` });
+  .setColor(storedResponse.isAccept ? 0x57F287 : 0xED4245)      .setFooter({ 
+        text: `Requêtes IA restantes: ${rateLimitCheck.remaining}/${rateLimitCheck.isPremium ? '20 (Premium)' : '3 (Gratuit)'} (par serveur)` 
+      });
     const sendButton = new ButtonBuilder()
       .setCustomId(`send_ai_${action}_${formId}_${messageId}_${userId}`)
       .setLabel('📤 Envoyer ce message')
