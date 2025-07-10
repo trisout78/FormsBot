@@ -52,15 +52,41 @@ If you prefer to self-host MyForm Bot, follow these steps:
    Edit the `config.json` file in the root directory and configure the following fields:
    ```json
    {
-     "token": "your-discord-bot-token",
-     "clientId": "your-discord-client-id",
-     "clientSecret": "your-discord-client-secret",
+     "token": "",
+     "clientId": "",
+     "clientSecret": "",
+     "permission": {
+       "base": ":x: You don't have the `{perm}` permission to do that !",
+       "NOTE": "Add {perm} to say the discord permission name !"
+     },
      "webserver": {
        "port": 3000,
        "baseUrl": "http://localhost:3000"
      },
-     "secretKey": "your-random-secret-key",
-     "webhookUrl": "your-webhook-url"
+     "secretKey": "change_this_to_a_secure_random_string",
+     "adminKey": "admin_secure_key_change_this_in_production",
+     "webhookUrl": "",  
+     "paypal": {
+       "email": "sb-maosj20404225@business.example.com",
+       "sandbox": true,
+       "price": "3.99",
+       "currency": "EUR"
+     },
+     "topgg": {
+       "authorization": "your_shared_secret_here",
+       "botId": ""
+     },
+     "openai": {
+       "apiKey": ""
+     },
+     "clarty": {
+       "enabled": true,
+       "apiKey": "",
+       "apiUrl": "https://openbl.clarty.org/api/v1"
+     },
+     "staff": [
+       "637213291558469663"
+     ]
    }
    ```
 
