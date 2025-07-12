@@ -707,6 +707,36 @@ async function processReviewAction(interaction, client, formId, userId, isAccept
             await member.roles.add(roleId);
           } catch (err) {
             console.log(`Erreur lors de l'ajout du rôle ${roleId} à ${userId}:`, err.message);
+            
+            // Envoyer un message privé au modérateur en cas d'échec
+            try {
+              const roleName = interaction.guild.roles.cache.get(roleId)?.name || 'Rôle inconnu';
+              const failureEmbed = new EmbedBuilder()
+                .setTitle('❌ Erreur d\'ajout de rôle')
+                .setDescription(`Impossible d'ajouter automatiquement le rôle **${roleName}** à l'utilisateur <@${userId}> suite à ${isAccept ? 'l\'acceptation' : 'le refus'} de sa réponse au formulaire "${form.title}".`)
+                .addFields(
+                  {
+                    name: '🔍 Causes possibles',
+                    value: '• Le rôle du bot est inférieur au rôle à attribuer\n• Le bot n\'a pas la permission "Gérer les rôles"\n• Le rôle a été supprimé',
+                    inline: false
+                  },
+                  {
+                    name: '💡 Solution',
+                    value: 'Vérifiez que le rôle du bot se trouve au-dessus du rôle à attribuer dans la hiérarchie des rôles.',
+                    inline: false
+                  }
+                )
+                .setColor(0xED4245)
+                .setFooter({ 
+                  text: `Serveur: ${interaction.guild.name} • Formulaire: ${form.title}`,
+                  iconURL: interaction.guild.iconURL()
+                })
+                .setTimestamp();
+
+              await interaction.user.send({ embeds: [failureEmbed] });
+            } catch (dmError) {
+              console.log(`Impossible d'envoyer le message d'erreur de rôle à ${interaction.user.id}:`, dmError.message);
+            }
           }
         }
       }
