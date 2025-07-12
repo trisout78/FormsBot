@@ -1137,7 +1137,7 @@ async function handleVoteCreditsCheck(interaction, client) {
     const voteCredits = getUserVoteCredits(interaction.user.id);
     
     // Calculer les requêtes IA possibles avec les crédits
-    const aiRequestsFromCredits = Math.floor(voteCredits * 2);
+    const aiRequestsFromCredits = Math.floor(voteCredits);
     
     const embed = new EmbedBuilder()
       .setTitle('💰 Vos Crédits de Vote')
