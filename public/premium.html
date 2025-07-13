@@ -265,6 +265,68 @@
             position: relative;
             z-index: 2;
         }
+        
+        /* Styles pour la section expérimentale */
+        .experimental-section {
+            background: linear-gradient(135deg, #57F287, #43AA8B);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin: 2rem 0;
+            text-align: center;
+        }
+        
+        .experimental-section h2 {
+            margin-top: 0;
+            font-size: 2rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .experimental-section .experimental-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        
+        .experimental-section .experimental-card {
+            background: rgba(255,255,255,0.1);
+            padding: 1rem;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease;
+        }
+        
+        .experimental-section .experimental-card:hover {
+            transform: translateY(-3px);
+        }
+        
+        .experimental-section .experimental-card h4 {
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        @media (max-width: 768px) {
+            .experimental-section {
+                padding: 1.5rem;
+            }
+            
+            .experimental-section h2 {
+                font-size: 1.8rem;
+            }
+            
+            .experimental-section .experimental-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .experimental-section .experimental-card {
+                padding: 1rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -302,6 +364,16 @@
                 <p>Accès complet à l'intelligence artificielle GPT-4.1 pour générer des formulaires entiers. Décrivez votre objectif et l'IA créera automatiquement toutes les questions nécessaires.</p>
             </div>
             <div class="feature">
+                <div class="feature-icon">🤖</div>
+                <h3>Réponses IA intelligentes</h3>
+                <p>L'IA génère automatiquement des réponses professionnelles et personnalisées pour accepter ou refuser les candidatures. 20 requêtes par heure (vs 3 par jour en gratuit). Feedback interactif pour améliorer les réponses en temps réel.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🗳️</div>
+                <h3>Crédits IA illimités</h3>
+                <p>En tant qu'utilisateur Premium, bénéficiez de 20 requêtes IA par heure au lieu de 3 par jour. Les crédits de vote s'ajoutent à vos limites Premium pour une utilisation encore plus flexible.</p>
+            </div>
+            <div class="feature">
                 <div class="feature-icon">⚡</div>
                 <h3>Fonctionnalités futures</h3>
                 <p>Accédez en avant-première à toutes les nouvelles fonctionnalités premium qui seront développées</p>
@@ -320,6 +392,37 @@
                 <div class="feature-icon">🔧</div>
                 <h3>Options avancées</h3>
                 <p>Personnalisations poussées, intégrations tierces et outils de modération avancés (à venir)</p>
+            </div>
+        </div>
+
+        <!-- Section Features Expérimentales -->
+        <div class="experimental-section">
+            <h2>🧪 Features IA Expérimentales</h2>
+            <p style="font-size: 1.1rem; margin-bottom: 1.5rem; opacity: 0.95;">
+                <strong>Actuellement gratuites pour tous !</strong> Ces fonctionnalités sont en phase de test et deviendront probablement Premium dans le futur.
+            </p>
+            
+            <div class="experimental-grid">
+                <div class="experimental-card">
+                    <h4>🤖 Réponses IA automatiques</h4>
+                    <p style="font-size: 0.9rem; margin: 0;">
+                        L'IA génère des messages personnalisés pour accepter/refuser les candidatures avec un ton professionnel et bienveillant.
+                    </p>
+                </div>
+                
+                <div class="experimental-card">
+                    <h4>🔄 Feedback interactif</h4>
+                    <p style="font-size: 0.9rem; margin: 0;">
+                        Donnez des retours à l'IA pour qu'elle améliore ses réponses en temps réel selon vos préférences.
+                    </p>
+                </div>
+                
+                <div class="experimental-card">
+                    <h4>🗳️ Système de crédits</h4>
+                    <p style="font-size: 0.9rem; margin: 0;">
+                        Votez sur Top.gg pour gagner des crédits IA supplémentaires au-delà des limites quotidiennes.
+                    </p>
+                </div>
             </div>
         </div>
 

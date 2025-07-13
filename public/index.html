@@ -226,6 +226,17 @@
                 width: 100%;
                 box-sizing: border-box;
             }
+            /* Styles responsive pour les nouvelles sections expérimentales */
+            section[style*="background: linear-gradient(135deg, #57F287, #43AA8B)"] div[style*="display: grid"] {
+                grid-template-columns: 1fr !important;
+                gap: 1.5rem !important;
+            }
+            section[style*="background: linear-gradient(135deg, #57F287, #43AA8B)"] h2 {
+                font-size: 2rem !important;
+            }
+            section[style*="background: linear-gradient(135deg, #57F287, #43AA8B)"] div[style*="padding: 2rem"] {
+                padding: 1.5rem !important;
+            }
         }
     </style>
     <meta property="og:title" content="MyForm - Formulaires Discord" />
@@ -269,6 +280,21 @@
                 <p>Créez des formulaires intelligents grâce à l'IA. Décrivez votre besoin et laissez l'intelligence artificielle générer automatiquement les questions appropriées.</p>
             </div>
             <div class="feature">
+                <div class="feature-icon">🧠</div>
+                <h2>Réponses IA intelligentes</h2>
+                <p><span style="background: linear-gradient(135deg, #57F287, #43AA8B); color: #000; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; font-weight: bold;">EXPÉRIMENTAL</span> L'IA génère automatiquement des réponses professionnelles et personnalisées pour accepter ou refuser les candidatures. Gagnez du temps avec des messages cohérents et bienveillants.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔄</div>
+                <h2>Feedback IA interactif</h2>
+                <p><span style="background: linear-gradient(135deg, #57F287, #43AA8B); color: #000; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; font-weight: bold;">EXPÉRIMENTAL</span> Donnez des retours à l'IA pour qu'elle améliore ses réponses en temps réel. L'intelligence artificielle s'adapte à vos besoins et votre style de communication.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🗳️</div>
+                <h2>Crédits de vote IA</h2>
+                <p>Votez pour le bot sur Top.gg et gagnez des crédits pour utiliser l'IA au-delà des limites gratuites. 0.5 crédit par vote (1 crédit les weekends), vote possible toutes les 12 heures.</p>
+            </div>
+            <div class="feature">
                 <div class="feature-icon">👥</div>
                 <h2>Attribution de rôles</h2>
                 <p>Attribuez automatiquement des rôles aux utilisateurs selon que leur réponse est acceptée ou refusée.</p>
@@ -310,6 +336,42 @@
             </div>
         </div>
     </div>
+
+    <!-- Section Features Expérimentales -->
+    <section style="background: linear-gradient(135deg, #57F287, #43AA8B); color: white; padding: 3rem 2rem; text-align: center; margin: 3rem 0;">
+        <div class="container">
+            <h2 style="font-size: 2.5rem; margin-bottom: 1rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">🧪 Nouvelles Features IA Expérimentales</h2>
+            <p style="font-size: 1.2rem; margin-bottom: 2rem; opacity: 0.95; max-width: 800px; margin-left: auto; margin-right: auto;">
+                <strong>Actuellement gratuites pour tous !</strong> Découvrez nos dernières innovations en intelligence artificielle pour révolutionner la gestion de vos formulaires.
+            </p>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin: 2rem 0;">
+                <div style="background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 8px; backdrop-filter: blur(10px); transition: transform 0.3s ease;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🤖</div>
+                    <h3 style="margin-bottom: 1rem; font-size: 1.3rem;">Réponses IA automatiques</h3>
+                    <p style="margin: 0; line-height: 1.6;">
+                        L'IA génère automatiquement des messages professionnels et personnalisés pour accepter ou refuser les candidatures. Fini les réponses répétitives !
+                    </p>
+                </div>
+                
+                <div style="background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 8px; backdrop-filter: blur(10px); transition: transform 0.3s ease;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🔄</div>
+                    <h3 style="margin-bottom: 1rem; font-size: 1.3rem;">Feedback interactif</h3>
+                    <p style="margin: 0; line-height: 1.6;">
+                        Donnez des retours à l'IA pour qu'elle améliore ses réponses en temps réel. L'intelligence artificielle s'adapte à votre style de communication.
+                    </p>
+                </div>
+                
+                <div style="background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 8px; backdrop-filter: blur(10px); transition: transform 0.3s ease;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🗳️</div>
+                    <h3 style="margin-bottom: 1rem; font-size: 1.3rem;">Système de crédits</h3>
+                    <p style="margin: 0; line-height: 1.6;">
+                        Votez sur Top.gg et gagnez des crédits pour utiliser l'IA au-delà des limites gratuites. 0.5 crédit par vote, vote possible toutes les 12 heures.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
 
     <section class="steps">
         <div class="container">
