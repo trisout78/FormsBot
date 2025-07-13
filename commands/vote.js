@@ -7,10 +7,6 @@ module.exports = {
   
   async execute(interaction, client) {
     try {
-      // Récupérer les crédits actuels de l'utilisateur
-      const { getUserVoteCredits } = require('../web/routes/webhooks.js');
-      const currentCredits = getUserVoteCredits(interaction.user.id);
-      
       const embed = new EmbedBuilder()
         .setTitle('🗳️ Votez pour MyForm sur Top.gg !')
         .setDescription('Soutenez MyForm en votant sur Top.gg et recevez des **crédits IA gratuits** !')
@@ -31,11 +27,6 @@ module.exports = {
             name: '🌍 Portée',
             value: 'Crédits utilisables sur **tous les serveurs**',
             inline: true
-          },
-          {
-            name: '💰 Vos crédits actuels',
-            value: `**${currentCredits}** crédit${currentCredits > 1 ? 's' : ''} (${currentCredits} requêtes IA)`,
-            inline: false
           },
           {
             name: '🤖 Comment ça marche ?',
@@ -71,8 +62,7 @@ module.exports = {
 
       await interaction.reply({
         embeds: [embed],
-        components: [row],
-        ephemeral: true
+        components: [row]
       });
 
     } catch (error) {
