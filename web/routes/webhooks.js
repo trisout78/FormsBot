@@ -185,11 +185,11 @@ async function processTopGGVote(vote, client) {
     }
 
     // Calculer les crédits à ajouter
-    let creditsToAdd = 0.5; // 0.5 crédit de base
+    let creditsToAdd = 2; // 2 crédits de base
     
-    // Bonus weekend (1 crédit au lieu de 0.5)
+    // Bonus weekend (3 crédits au lieu de 2)
     if (isWeekend) {
-      creditsToAdd = 1;
+      creditsToAdd = 3;
     }
 
     // Récupérer ou créer les crédits de l'utilisateur

@@ -15,7 +15,7 @@ module.exports = {
         .addFields(
           {
             name: '🎁 Récompenses de vote',
-            value: '• **0.5 crédit IA** par vote normal\n• **1 crédit IA** pendant les weekends\n• **1 crédit = 1 requête IA** supplémentaire',
+            value: '• **2 crédits IA** par vote normal\n• **3 crédits IA** pendant les weekends\n• **1 crédit = 1 requête IA** supplémentaire',
             inline: false
           },
           {

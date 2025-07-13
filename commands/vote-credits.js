@@ -56,7 +56,7 @@ module.exports = {
             },
             {
               name: '⭐ Récompenses',
-              value: '• **0.5 crédit** par vote normal\n• **1 crédit** pendant les weekends\n• Vote possible toutes les **12 heures**',
+              value: '• **2 crédits** par vote normal\n• **3 crédits** pendant les weekends\n• Vote possible toutes les **12 heures**',
               inline: true
             },
             {
