@@ -29,7 +29,6 @@ async function initializeBot() {
 
   // Initialisation des collections
   client.commands = new Collection();
-  client.formBuilders = new Map();
   client.tempResponses = new Map();
   client.aiResponses = {}; // Stockage temporaire des réponses IA générées
   

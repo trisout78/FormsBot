@@ -67,33 +67,9 @@ async function handleInteractions(interaction, client) {
       return await handleSlashCommand(interaction, client);
     }
 
-    // Gestionnaire pour les boutons du form builder
-    if (interaction.isButton() && ['add_question', 'remove_question', 'set_title', 'finish_form', 'choose_embed_channel', 'choose_response_channel', 'set_embed_text', 'set_button_label'].includes(interaction.customId)) {
-      const { handleFormBuilder } = require('./formBuilder.js');
-      return await handleFormBuilder(interaction, client);
-    }
-
     // Gestionnaire pour les soumissions de formulaires
     if (interaction.isModalSubmit() && interaction.customId.startsWith('fill_modal_')) {
       return await handleFormModalSubmission(interaction, client);
-    }
-
-    // Gestionnaire pour les modals du form builder
-    if (interaction.isModalSubmit() && ['question_modal', 'title_modal', 'embed_text_modal', 'button_label_modal'].includes(interaction.customId)) {
-      const { handleFormBuilder } = require('./formBuilder.js');
-      return await handleFormBuilder(interaction, client);
-    }
-
-    // Gestionnaire pour les menus de sélection du form builder
-    if (interaction.isStringSelectMenu() && ['remove_question_select'].includes(interaction.customId)) {
-      const { handleFormBuilder } = require('./formBuilder.js');
-      return await handleFormBuilder(interaction, client);
-    }
-
-    // Gestionnaire pour les menus de sélection de canaux du form builder
-    if (interaction.isChannelSelectMenu() && ['embed_channel_select', 'response_channel_select'].includes(interaction.customId)) {
-      const { handleFormBuilder } = require('./formBuilder.js');
-      return await handleFormBuilder(interaction, client);
     }
 
   } catch (error) {
@@ -773,12 +749,6 @@ async function processReviewAction(interaction, client, formId, userId, isAccept
     console.error(`Erreur lors du traitement de la ${isAccept ? 'acceptation' : 'refus'}:`, error);
     throw error;
   }
-}
-
-async function handleFormBuilder(interaction, client) {
-  // Cette fonction est maintenant gérée dans formBuilder.js
-  const { handleFormBuilder: formBuilderHandler } = require('./formBuilder.js');
-  return await formBuilderHandler(interaction, client);
 }
 
 // Nouvelles fonctions pour gérer les interactions IA
