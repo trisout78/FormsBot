@@ -34,7 +34,7 @@ function createVoteButton() {
       new ButtonBuilder()
         .setLabel('🗳️ Voter sur Top.gg')
         .setStyle(ButtonStyle.Link)
-        .setURL('https://top.gg/bot/1368683312478027806/vote')
+        .setURL(`https://top.gg/bot/${config.clientId}/vote`)
     );
 }
 
