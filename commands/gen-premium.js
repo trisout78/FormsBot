@@ -7,6 +7,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('gen-premium')
     .setDescription('🎁 Génère un code cadeau premium (Staff uniquement)'),
+  staffOnly: true,  // Marquer cette commande comme staff uniquement
   
   async execute(interaction) {
     // Vérifier si l'utilisateur est dans la liste du staff

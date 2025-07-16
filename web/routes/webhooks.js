@@ -3,6 +3,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const { config } = require('../../utils/config.js');
 const { logToWebhookAndConsole } = require('../../utils/logger.js');
+const { recordVoteTimestamp } = require('../../utils/vote-timestamps.js');
 
 // Chemin vers le fichier de stockage des votes
 const voteCreditsPath = path.join(__dirname, '../../vote.json');
@@ -198,6 +199,9 @@ async function processTopGGVote(vote, client) {
     // Ajouter les crédits
     userCredits.credits += creditsToAdd;
     userCredits.lastVote = Date.now();
+    
+    // Enregistrer le timestamp pour le système de rappels
+    recordVoteTimestamp(user);
     
     // Sauvegarder
     voteCredits.set(user, userCredits);

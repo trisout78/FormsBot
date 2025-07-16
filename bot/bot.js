@@ -8,6 +8,7 @@ const { loadBlacklist, saveBlacklist, isUserBlacklisted } = require('../utils/bl
 const { checkClartyBlacklist } = require('../utils/clarty.js');
 const { logToWebhookAndConsole } = require('../utils/logger.js');
 const { premiumGuilds, loadPremiumList } = require('../utils/premium.js');
+const { startVoteReminderSystem } = require('../utils/vote-reminders.js');
 
 // Import des handlers
 const { handleInteractions } = require('./handlers/interactions.js');
@@ -108,11 +109,56 @@ function loadCommands() {
 // Fonction pour enregistrer les commandes dans une guilde
 async function registerGuildCommands(guildId) {
   try {
-    const commandsData = [...client.commands.values()].map(cmd => cmd.data.toJSON());
+    const isStaffServer = guildId === config['staff-server'];
+    
+    let commandsToRegister;
+    if (isStaffServer) {
+      // Sur le serveur staff, enregistrer toutes les commandes
+      commandsToRegister = [...client.commands.values()];
+    } else {
+      // Sur les autres serveurs, exclure les commandes staff-only
+      commandsToRegister = [...client.commands.values()].filter(cmd => !cmd.staffOnly);
+    }
+    
+    const commandsData = commandsToRegister.map(cmd => cmd.data.toJSON());
     await rest.put(Routes.applicationGuildCommands(config.clientId, guildId), { body: commandsData });
-    console.log(`Commandes enregistrées pour le serveur ${guildId}`);
+    
+    console.log(`Commandes enregistrées pour le serveur ${guildId} (${isStaffServer ? 'Staff' : 'Normal'}): ${commandsData.length} commandes`);
   } catch (error) {
     console.error(`Erreur lors de l'enregistrement des commandes pour ${guildId}:`, error);
+  }
+}
+
+// Fonction pour nettoyer les commandes staff des serveurs normaux
+async function cleanupStaffCommands() {
+  try {
+    const staffOnlyCommands = [...client.commands.values()].filter(cmd => cmd.staffOnly);
+    
+    if (staffOnlyCommands.length === 0) {
+      return;
+    }
+    
+    console.log(`Nettoyage des commandes staff sur les serveurs normaux...`);
+    
+    for (const guild of client.guilds.cache.values()) {
+      if (guild.id === config['staff-server']) {
+        continue; // Ignorer le serveur staff
+      }
+      
+      try {
+        // Ré-enregistrer uniquement les commandes normales pour ce serveur
+        await registerGuildCommands(guild.id);
+      } catch (error) {
+        console.error(`Erreur lors du nettoyage pour ${guild.id}:`, error);
+      }
+      
+      // Attendre un peu entre chaque serveur pour éviter le rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    console.log('Nettoyage des commandes staff terminé');
+  } catch (error) {
+    console.error('Erreur lors du nettoyage des commandes staff:', error);
   }
 }
 
@@ -169,6 +215,14 @@ function setupEventHandlers() {
     }
     
     console.log('Commandes enregistrées pour tous les serveurs');
+    
+    // Nettoyer les commandes staff des serveurs normaux (au cas où elles auraient été enregistrées avant)
+    setTimeout(() => {
+      cleanupStaffCommands();
+    }, 5000); // Attendre 5 secondes après l'enregistrement initial
+    
+    // Démarrer le système de rappels de vote
+    startVoteReminderSystem(client);
     
     // Log de démarrage
     await logToWebhookAndConsole(
@@ -248,5 +302,7 @@ function setupEventHandlers() {
 
 module.exports = {
   initializeBot,
-  getClient: () => client
+  getClient: () => client,
+  registerGuildCommands,
+  cleanupStaffCommands
 };
