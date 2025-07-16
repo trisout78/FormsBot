@@ -216,11 +216,6 @@ function setupEventHandlers() {
     
     console.log('Commandes enregistrées pour tous les serveurs');
     
-    // Nettoyer les commandes staff des serveurs normaux (au cas où elles auraient été enregistrées avant)
-    setTimeout(() => {
-      cleanupStaffCommands();
-    }, 5000); // Attendre 5 secondes après l'enregistrement initial
-    
     // Démarrer le système de rappels de vote
     startVoteReminderSystem(client);
     
