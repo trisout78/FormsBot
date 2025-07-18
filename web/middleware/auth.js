@@ -32,6 +32,21 @@ async function hasGuildPermission(req, res, next) {
       }
     }).catch(error => {
       console.log('Erreur lors de la récupération des serveurs:', error.response?.data || error.message);
+      
+      // Gestion spécifique des rate limits Discord
+      if (error.response && error.response.status === 429) {
+        const retryAfter = error.response.data.retry_after || 1;
+        throw {
+          status: 429,
+          data: {
+            error: 'Rate limit atteint',
+            message: 'You are being rate limited.',
+            retry_after: retryAfter,
+            global: error.response.data.global || false
+          }
+        };
+      }
+      
       return { data: [] };
     });
 
@@ -71,6 +86,12 @@ async function hasGuildPermission(req, res, next) {
     return res.status(403).send('Vous n\'avez pas les permissions nécessaires dans ce serveur');
   } catch (error) {
     console.log('Erreur lors de la vérification des permissions:', error);
+    
+    // Gestion spécifique des rate limits Discord
+    if (error.status === 429) {
+      return res.status(429).json(error.data);
+    }
+    
     res.status(500).send('Erreur lors de la vérification des permissions');
   }
 }

@@ -14,40 +14,66 @@ function setupApiRoutes(app, client) {
 
   // API pour obtenir la liste des serveurs
   app.get('/api/guilds', isAuthenticated, async (req, res) => {
-    try {
-      const guildsResponse = await axios.get(`${DISCORD_API_URL}/users/@me/guilds`, {
-        headers: {
-          Authorization: `Bearer ${req.session.accessToken}`
+    const makeRequest = async (retryCount = 0) => {
+      try {
+        const guildsResponse = await axios.get(`${DISCORD_API_URL}/users/@me/guilds`, {
+          headers: {
+            Authorization: `Bearer ${req.session.accessToken}`
+          }
+        });
+        
+        const managableGuilds = guildsResponse.data.filter(guild => {
+          const permissions = BigInt(guild.permissions);
+          return (permissions & BigInt(0x2000)) !== BigInt(0);
+        });
+        
+        const botGuilds = client.guilds.cache;
+        const availableGuilds = managableGuilds.filter(guild => 
+          botGuilds.has(guild.id)
+        );
+        
+        const guildsWithFormInfo = availableGuilds.map(guild => {
+          const formCount = client.forms[guild.id] ? Object.keys(client.forms[guild.id]).length : 0;
+          const isPremium = client.premiumGuilds.includes(guild.id);
+          const limit = isPremium ? Infinity : 3;
+          return {
+            ...guild,
+            formCount,
+            isPremium,
+            limit
+          };
+        });
+        
+        res.json(guildsWithFormInfo);
+      } catch (error) {
+        console.log('Erreur lors de la récupération des serveurs:', error);
+        
+        // Gestion spécifique des rate limits Discord
+        if (error.response && error.response.status === 429) {
+          const retryAfter = (error.response.data.retry_after || 1) * 1000; // Convertir en millisecondes
+          const maxRetries = 3;
+          
+          if (retryCount < maxRetries) {
+            console.log(`Rate limit atteint, retry dans ${retryAfter}ms (tentative ${retryCount + 1}/${maxRetries})`);
+            setTimeout(() => {
+              makeRequest(retryCount + 1);
+            }, retryAfter);
+            return;
+          } else {
+            return res.status(429).json({
+              error: 'Rate limit atteint',
+              message: 'You are being rate limited.',
+              retry_after: error.response.data.retry_after || 1,
+              global: error.response.data.global || false
+            });
+          }
         }
-      });
-      
-      const managableGuilds = guildsResponse.data.filter(guild => {
-        const permissions = BigInt(guild.permissions);
-        return (permissions & BigInt(0x2000)) !== BigInt(0);
-      });
-      
-      const botGuilds = client.guilds.cache;
-      const availableGuilds = managableGuilds.filter(guild => 
-        botGuilds.has(guild.id)
-      );
-      
-      const guildsWithFormInfo = availableGuilds.map(guild => {
-        const formCount = client.forms[guild.id] ? Object.keys(client.forms[guild.id]).length : 0;
-        const isPremium = client.premiumGuilds.includes(guild.id);
-        const limit = isPremium ? Infinity : 3;
-        return {
-          ...guild,
-          formCount,
-          isPremium,
-          limit
-        };
-      });
-      
-      res.json(guildsWithFormInfo);
-    } catch (error) {
-      console.log('Erreur lors de la récupération des serveurs:', error);
-      res.status(500).json({ error: 'Erreur lors de la récupération des serveurs' });
-    }
+        
+        res.status(500).json({ error: 'Erreur lors de la récupération des serveurs' });
+      }
+    };
+    
+    await makeRequest();
   });
 
   // API pour obtenir les formulaires d'un serveur
@@ -648,27 +674,50 @@ function setupGiftCodeApiRoutes(app, client) {
       }
       
       // Vérifier que l'utilisateur a les permissions sur le serveur
-      try {
-        const guildsResponse = await axios.get(`${DISCORD_API_URL}/users/@me/guilds`, {
-          headers: {
-            Authorization: `Bearer ${req.session.accessToken}`
+      const checkPermissions = async (retryCount = 0) => {
+        try {
+          const guildsResponse = await axios.get(`${DISCORD_API_URL}/users/@me/guilds`, {
+            headers: {
+              Authorization: `Bearer ${req.session.accessToken}`
+            }
+          });
+
+          const userGuild = guildsResponse.data.find(g => g.id === guildId);
+          if (!userGuild) {
+            return res.status(403).json({ error: 'Vous n\'êtes pas membre de ce serveur' });
           }
-        });
 
-        const userGuild = guildsResponse.data.find(g => g.id === guildId);
-        if (!userGuild) {
-          return res.status(403).json({ error: 'Vous n\'êtes pas membre de ce serveur' });
+          const permissions = BigInt(userGuild.permissions || 0);
+          const hasManageMessages = (permissions & BigInt(0x2000)) !== BigInt(0);
+          const hasAdmin = (permissions & BigInt(0x8)) !== BigInt(0);
+          
+          if (!hasManageMessages && !hasAdmin && !userGuild.owner) {
+            return res.status(403).json({ error: 'Vous n\'avez pas les permissions nécessaires sur ce serveur' });
+          }
+          
+          return true; // Permissions OK
+        } catch (permError) {
+          if (permError.response && permError.response.status === 429) {
+            const retryAfter = (permError.response.data.retry_after || 1) * 1000;
+            const maxRetries = 3;
+            
+            if (retryCount < maxRetries) {
+              console.log(`Rate limit pour permissions, retry dans ${retryAfter}ms (tentative ${retryCount + 1}/${maxRetries})`);
+              return new Promise(resolve => {
+                setTimeout(async () => {
+                  const result = await checkPermissions(retryCount + 1);
+                  resolve(result);
+                }, retryAfter);
+              });
+            }
+          }
+          return res.status(500).json({ error: 'Erreur lors de la vérification des permissions' });
         }
-
-        const permissions = BigInt(userGuild.permissions || 0);
-        const hasManageMessages = (permissions & BigInt(0x2000)) !== BigInt(0);
-        const hasAdmin = (permissions & BigInt(0x8)) !== BigInt(0);
-        
-        if (!hasManageMessages && !hasAdmin && !userGuild.owner) {
-          return res.status(403).json({ error: 'Vous n\'avez pas les permissions nécessaires sur ce serveur' });
-        }
-      } catch (permError) {
-        return res.status(500).json({ error: 'Erreur lors de la vérification des permissions' });
+      };
+      
+      const permissionResult = await checkPermissions();
+      if (permissionResult !== true) {
+        return; // La réponse a déjà été envoyée
       }
       
       // Marquer le code comme utilisé
