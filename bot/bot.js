@@ -163,20 +163,36 @@ async function cleanupStaffCommands() {
 }
 
 function setupStatusRotation() {
-  const botStatuses = [
-    { type: 'Playing', name: '📝 Créer des formulaires' },
-    { type: 'Watching', name: '📊 Les réponses arriver' },
-    { type: 'Listening', name: '💬 Vos commandes' },
-    { type: 'Watching', name: '⚙️ Les configurations' },
-    { type: 'Playing', name: '🤖 Assistant IA intégré' },
-    { type: 'Playing', name: '💎 Premium disponible' },
-    { type: 'Playing', name: '🆕 1.5 disponible' }
-  ];
-
   let currentStatusIndex = 0;
 
   function updateBotStatus() {
     if (!client.user) return;
+    
+    // Calculer les statistiques dynamiques
+    const serverCount = client.guilds.cache.size;
+    const userCount = client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0);
+    const formCount = Object.keys(client.forms || {}).length;
+    const premiumCount = Object.keys(client.premiumGuilds || {}).length;
+    
+    // Charger les votes d'aujourd'hui
+    let todayVotes = 0;
+    try {
+      const voteData = fs.readJsonSync(path.join(__dirname, '../vote.json'));
+      const today = new Date().toDateString();
+      todayVotes = Object.values(voteData).filter(vote => 
+        new Date(vote.lastVote).toDateString() === today
+      ).length;
+    } catch (error) {
+      // Si le fichier n'existe pas ou erreur, garder 0
+    }
+    
+    const botStatuses = [
+      { type: 'Watching', name: `📊 ${serverCount} serveurs` },
+      { type: 'Watching', name: `👥 ${userCount.toLocaleString()} utilisateurs` },
+      { type: 'Watching', name: `� ${formCount} formulaires` },
+      { type: 'Watching', name: `💎 ${premiumCount} premiums` },
+      { type: 'Watching', name: `🗳️ ${todayVotes} votes` }
+    ];
     
     const status = botStatuses[currentStatusIndex];
     const activityType = status.type === 'Playing' ? 0 : 
