@@ -46,24 +46,6 @@ function saveVoteCredits() {
       dataToSave[userId] = credits;
     });
     
-    // Créer un backup si le fichier existe
-    if (fs.existsSync(voteCreditsPath)) {
-      const backupPath = path.join(__dirname, `../../vote_backup_${Date.now()}.json`);
-      fs.copySync(voteCreditsPath, backupPath);
-      
-      // Nettoyer les anciens backups (garder seulement les 5 derniers)
-      const backupFiles = fs.readdirSync(path.dirname(voteCreditsPath))
-        .filter(f => f.startsWith('vote_backup_'))
-        .sort()
-        .reverse();
-      
-      if (backupFiles.length > 5) {
-        backupFiles.slice(5).forEach(file => {
-          fs.unlinkSync(path.join(path.dirname(voteCreditsPath), file));
-        });
-      }
-    }
-    
     fs.writeJsonSync(voteCreditsPath, dataToSave, { spaces: 2 });
     console.log(`Crédits de vote sauvegardés: ${Object.keys(dataToSave).length} utilisateurs`);
     return true;
