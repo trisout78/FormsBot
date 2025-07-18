@@ -35,5 +35,9 @@
   "staff": [
     ""
   ],
-  "staff-server": ""
+  "staff-server": "",
+  "supportServer": {
+    "inviteUrl": "https://discord.gg/your-support-server",
+    "name": "Serveur de Support MyForm"
+  }
 }
