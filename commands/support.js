@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
 const { config } = require('../utils/config.js');
+const { createGenericErrorEmbed } = require('../utils/support.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -59,14 +60,10 @@ module.exports = {
     } catch (error) {
       console.error('Erreur dans la commande support:', error);
       
-      const errorEmbed = new EmbedBuilder()
-        .setTitle('❌ Erreur')
-        .setDescription('Une erreur est survenue lors de l\'affichage du support. Veuillez réessayer.')
-        .setColor(0xED4245)
-        .setTimestamp();
+      const errorResponse = createGenericErrorEmbed('Une erreur est survenue lors de l\'affichage du support. Veuillez réessayer.');
 
       await interaction.reply({
-        embeds: [errorEmbed],
+        ...errorResponse,
         ephemeral: true
       });
     }
