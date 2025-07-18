@@ -43,20 +43,13 @@ module.exports = {
 
       // Créer le bouton de support
       const supportButton = new ButtonBuilder()
-        .setLabel('🆘 Rejoindre le Support')
+        .setLabel('Rejoindre le Support')
         .setStyle(ButtonStyle.Link)
         .setURL(config.supportServer?.inviteUrl || 'https://discord.gg/your-support-server')
         .setEmoji('🆘');
 
-      // Créer le bouton pour la documentation (optionnel)
-      const docsButton = new ButtonBuilder()
-        .setLabel('📚 Documentation')
-        .setStyle(ButtonStyle.Link)
-        .setURL(`${config.webserver.baseUrl}/`)
-        .setEmoji('📚');
-
       const row = new ActionRowBuilder()
-        .addComponents(supportButton, docsButton);
+        .addComponents(supportButton);
 
       await interaction.reply({
         embeds: [embed],
