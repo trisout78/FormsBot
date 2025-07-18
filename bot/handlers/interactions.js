@@ -400,7 +400,21 @@ async function handleFormModalSubmission(interaction, client) {
       ephemeral: true
     });
     
-    console.log(`Réponse au formulaire "${form.title}" reçue de ${interaction.user.username}`);
+    // Log console et webhook de la réponse
+    console.log(`Réponse au formulaire "${form.title}" reçue de ${interaction.user.username} (ID: ${interaction.user.id}) sur le serveur ${interaction.guild.name}`);
+    
+    await logToWebhookAndConsole(
+      "📝 Nouvelle réponse de formulaire",
+      `**${interaction.user.username}** a répondu au formulaire "${form.title}"`,
+      [
+        { name: "Utilisateur", value: `${interaction.user.username} (ID: ${interaction.user.id})`, inline: true },
+        { name: "Formulaire", value: form.title, inline: true },
+        { name: "Serveur", value: interaction.guild.name, inline: true },
+        { name: "Canal de réponse", value: `<#${form.responseChannelId}>`, inline: true },
+        { name: "Nombre de questions", value: `${responses.length}`, inline: true }
+      ],
+      0x3498db
+    );
   } catch (error) {
     console.error('Erreur lors de l\'envoi de la réponse:', error);
     await interaction.reply({
