@@ -1,6 +1,7 @@
 const { initializeBot } = require('./bot/bot.js');
 const { initializeWebServer } = require('./web/server.js');
 const { cleanupOldCooldowns } = require('./utils/cooldowns.js');
+const BackupManager = require('./utils/backup.js');
 
 async function startApplication() {
   console.log('🚀 Démarrage de FormsBot...');
@@ -11,6 +12,9 @@ async function startApplication() {
     
     // Initialiser le serveur web
     await initializeWebServer(client);
+    
+    // Initialiser le système de sauvegarde
+    const backupManager = new BackupManager();
     
     // Nettoyage initial des cooldowns
     cleanupOldCooldowns();
