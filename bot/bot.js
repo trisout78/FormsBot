@@ -189,7 +189,7 @@ function setupStatusRotation() {
     const botStatuses = [
       { type: 'Watching', name: `📊 ${serverCount} serveurs` },
       { type: 'Watching', name: `👥 ${userCount.toLocaleString()} utilisateurs` },
-      { type: 'Watching', name: `� ${formCount} formulaires` },
+      { type: 'Watching', name: `📝 ${formCount} formulaires` },
       { type: 'Watching', name: `💎 ${premiumCount} premiums` },
       { type: 'Watching', name: `🗳️ ${todayVotes} votes` }
     ];
