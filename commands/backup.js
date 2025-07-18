@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const BackupManager = require('../utils/backup.js');
-const config = require('../utils/config.js');
+const { config } = require('../utils/config.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -39,12 +39,18 @@ module.exports = {
 
     switch (subcommand) {
       case 'test':
-        const testResult = await backupManager.testBackup();
-        await interaction.editReply({
-          content: testResult ? 
-            '✅ Test de sauvegarde réussi ! Le webhook fonctionne correctement.' : 
-            '❌ Test de sauvegarde échoué. Vérifiez la configuration du webhook.'
-        });
+        try {
+          const testResult = await backupManager.testBackup();
+          await interaction.editReply({
+            content: testResult ? 
+              '✅ Test de sauvegarde réussi ! Le webhook fonctionne correctement.' : 
+              '❌ Test de sauvegarde échoué. Vérifiez la configuration du webhook.'
+          });
+        } catch (error) {
+          await interaction.editReply({
+            content: `❌ Erreur lors du test de sauvegarde : ${error.message}`
+          });
+        }
         break;
 
       case 'manual':

@@ -2,7 +2,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const cron = require('node-cron');
 const { EmbedBuilder, WebhookClient } = require('discord.js');
-const config = require('../utils/config.js');
+const { config } = require('../utils/config.js');
 
 class BackupManager {
   constructor() {
@@ -28,6 +28,8 @@ class BackupManager {
       } catch (error) {
         console.error('Erreur lors de l\'initialisation du webhook de sauvegarde:', error);
       }
+    } else {
+      console.log('⚠️ Webhook de sauvegarde non configuré dans config.json');
     }
 
     // Programmer la sauvegarde quotidienne à minuit (0h00)
@@ -47,7 +49,7 @@ class BackupManager {
     console.log('⏰ Sauvegarde automatique programmée pour tous les jours à minuit');
   }
 
-  async performBackup() {
+  async performBackup(isManual = false) {
     if (!this.backupWebhook) {
       console.log('❌ Webhook de sauvegarde non configuré, sauvegarde annulée');
       return;
@@ -98,7 +100,7 @@ class BackupManager {
 
       // Créer l'embed de sauvegarde
       const embed = new EmbedBuilder()
-        .setTitle('📦 Sauvegarde Automatique Quotidienne')
+        .setTitle(isManual ? '🔄 Sauvegarde Manuelle' : '📦 Sauvegarde Automatique Quotidienne')
         .setDescription(`Sauvegarde des données essentielles effectuée le ${new Date().toLocaleDateString('fr-FR', { 
           weekday: 'long', 
           year: 'numeric', 
@@ -107,7 +109,7 @@ class BackupManager {
           hour: '2-digit',
           minute: '2-digit'
         })}`)
-        .setColor(0x00FF00)
+        .setColor(isManual ? 0x0099FF : 0x00FF00)
         .setTimestamp()
         .addFields(
           { 
@@ -139,21 +141,8 @@ class BackupManager {
         embeds: [embed]
       });
 
-      // Envoyer les données sous forme de fichier JSON (si pas trop volumineux)
-      const jsonData = JSON.stringify(backupData, null, 2);
-      if (jsonData.length < 2000000) { // Limite Discord ~2MB
-        const buffer = Buffer.from(jsonData, 'utf8');
-        
-        await this.backupWebhook.send({
-          content: '📎 Fichier de sauvegarde complet:',
-          files: [{
-            attachment: buffer,
-            name: `backup-${new Date().toISOString().split('T')[0]}.json`
-          }]
-        });
-      } else {
-        console.log('⚠️ Fichier de sauvegarde trop volumineux pour être envoyé sur Discord');
-      }
+      // Envoyer les fichiers JSON individuellement avec gestion des limites Discord
+      await this.sendBackupFiles(backupData);
 
       console.log('✅ Sauvegarde automatique terminée avec succès');
 
@@ -171,6 +160,116 @@ class BackupManager {
 
           await this.backupWebhook.send({
             embeds: [errorEmbed]
+          });
+        } catch (webhookError) {
+          console.error('Erreur lors de l\'envoi du message d\'erreur:', webhookError);
+        }
+      }
+    }
+  }
+
+  async sendBackupFiles(backupData) {
+    const MAX_FILES_PER_MESSAGE = 10; // Limite Discord
+    const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB limite Discord
+    const dateString = new Date().toISOString().split('T')[0];
+    
+    const filesToSend = [];
+    
+    // Préparer les fichiers à envoyer
+    for (const [filename, info] of Object.entries(backupData)) {
+      if (!info.error && info.data) {
+        const jsonData = JSON.stringify(info.data, null, 2);
+        const buffer = Buffer.from(jsonData, 'utf8');
+        
+        // Vérifier la taille du fichier
+        if (buffer.length > MAX_FILE_SIZE) {
+          console.log(`⚠️ Fichier ${filename} trop volumineux (${this.formatSize(buffer.length)}), envoi des métadonnées uniquement`);
+          
+          // Créer un fichier de métadonnées pour les gros fichiers
+          const metaData = {
+            filename: filename,
+            size: info.size,
+            entries: info.entries,
+            lastModified: info.lastModified,
+            error: `Fichier trop volumineux pour Discord (${this.formatSize(buffer.length)})`
+          };
+          
+          const metaBuffer = Buffer.from(JSON.stringify(metaData, null, 2), 'utf8');
+          filesToSend.push({
+            attachment: metaBuffer,
+            name: `${filename.replace('.json', '')}-metadata-${dateString}.json`
+          });
+        } else {
+          filesToSend.push({
+            attachment: buffer,
+            name: `${filename.replace('.json', '')}-${dateString}.json`
+          });
+        }
+      }
+    }
+    
+    // Envoyer les fichiers par lots
+    if (filesToSend.length > 0) {
+      const batches = [];
+      for (let i = 0; i < filesToSend.length; i += MAX_FILES_PER_MESSAGE) {
+        batches.push(filesToSend.slice(i, i + MAX_FILES_PER_MESSAGE));
+      }
+      
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        const batchNumber = batches.length > 1 ? ` (${i + 1}/${batches.length})` : '';
+        
+        try {
+          await this.backupWebhook.send({
+            content: `📎 **Fichiers de sauvegarde${batchNumber}**\n${batch.map(f => `• ${f.name}`).join('\n')}`,
+            files: batch
+          });
+          
+          console.log(`✅ Lot ${i + 1}/${batches.length} envoyé: ${batch.length} fichier(s)`);
+          
+          // Petite pause entre les messages pour éviter le rate limiting
+          if (i < batches.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        } catch (error) {
+          console.error(`❌ Erreur lors de l'envoi du lot ${i + 1}:`, error);
+          
+          // Essayer d'envoyer les fichiers un par un en cas d'erreur
+          await this.sendFilesIndividually(batch, i + 1);
+        }
+      }
+    } else {
+      await this.backupWebhook.send({
+        content: '⚠️ Aucun fichier de sauvegarde valide à envoyer.'
+      });
+    }
+  }
+
+  async sendFilesIndividually(files, batchNumber) {
+    console.log(`🔄 Envoi individuel des fichiers du lot ${batchNumber}...`);
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      
+      try {
+        await this.backupWebhook.send({
+          content: `📎 **Fichier de sauvegarde** (${i + 1}/${files.length} du lot ${batchNumber})`,
+          files: [file]
+        });
+        
+        console.log(`✅ Fichier individuel envoyé: ${file.name}`);
+        
+        // Pause pour éviter le rate limiting
+        if (i < files.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      } catch (error) {
+        console.error(`❌ Erreur lors de l'envoi de ${file.name}:`, error);
+        
+        // Envoyer un message d'erreur pour ce fichier
+        try {
+          await this.backupWebhook.send({
+            content: `❌ **Erreur fichier:** ${file.name}\n\`\`\`${error.message}\`\`\``
           });
         } catch (webhookError) {
           console.error('Erreur lors de l\'envoi du message d\'erreur:', webhookError);
@@ -199,14 +298,32 @@ class BackupManager {
   // Méthode pour effectuer une sauvegarde manuelle
   async manualBackup() {
     console.log('🔄 Début de la sauvegarde manuelle...');
-    await this.performBackup();
+    
+    // Envoyer un message pour indiquer le début de la sauvegarde manuelle
+    if (this.backupWebhook) {
+      try {
+        const startEmbed = new EmbedBuilder()
+          .setTitle('🔄 Sauvegarde Manuelle Démarrée')
+          .setDescription('Sauvegarde manuelle en cours...')
+          .setColor(0xFFAA00)
+          .setTimestamp();
+
+        await this.backupWebhook.send({
+          embeds: [startEmbed]
+        });
+      } catch (error) {
+        console.error('Erreur lors de l\'envoi du message de début:', error);
+      }
+    }
+    
+    await this.performBackup(true);
   }
 
   // Méthode pour tester la sauvegarde
   async testBackup() {
     if (!this.backupWebhook) {
       console.log('❌ Webhook de sauvegarde non configuré');
-      return false;
+      throw new Error('Webhook de sauvegarde non configuré');
     }
 
     try {
@@ -224,7 +341,7 @@ class BackupManager {
       return true;
     } catch (error) {
       console.error('❌ Test de sauvegarde échoué:', error);
-      return false;
+      throw new Error(`Test de sauvegarde échoué: ${error.message}`);
     }
   }
 }
