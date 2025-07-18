@@ -95,6 +95,7 @@
         <div class="buttons">
             <a href="/" class="btn btn-outline">Retour à l'accueil</a>
             <a href="/dashboard" class="btn">Tableau de bord</a>
+            <a href="#" id="supportBtn" class="btn" style="background-color: #5865F2;">🆘 Support Discord</a>
         </div>
     </div>
 
@@ -134,6 +135,23 @@
                 })
                 .catch(error => {
                     console.error('Erreur lors de la vérification de l\'état de l\'utilisateur:', error);
+                });
+            
+            // Récupérer l'URL du serveur de support
+            fetch('/api/config/support')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.supportUrl) {
+                        document.getElementById('supportBtn').href = data.supportUrl;
+                    } else {
+                        // URL par défaut si pas configurée
+                        document.getElementById('supportBtn').href = 'https://discord.gg/your-support-server';
+                    }
+                })
+                .catch(error => {
+                    console.error('Erreur lors de la récupération de l\'URL de support:', error);
+                    // URL par défaut en cas d'erreur
+                    document.getElementById('supportBtn').href = 'https://discord.gg/your-support-server';
                 });
         });
     </script>

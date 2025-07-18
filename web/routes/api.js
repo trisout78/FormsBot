@@ -765,6 +765,15 @@ function setupGiftCodeApiRoutes(app, client) {
       res.status(500).json({ error: 'Erreur lors de l\'utilisation du code cadeau' });
     }
   });
+
+  // API pour obtenir l'URL du serveur de support
+  app.get('/api/config/support', (req, res) => {
+    const { config } = require('../../utils/config.js');
+    res.json({ 
+      supportUrl: config.supportServer?.inviteUrl || 'https://discord.gg/your-support-server',
+      supportName: config.supportServer?.name || 'Serveur de Support MyForm'
+    });
+  });
 }
 
 module.exports = setupApiRoutes;
