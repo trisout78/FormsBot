@@ -3,9 +3,10 @@ const { config, baseUrl } = require('../../utils/config.js');
 const { checkClartyBlacklist } = require('../../utils/clarty.js');
 const { logToWebhookAndConsole } = require('../../utils/logger.js');
 const { isAuthenticated, DISCORD_API_URL } = require('../middleware/auth.js');
+const { addUserToSupportServer, sendWelcomeMessage } = require('../../utils/support-auto-add.js');
 
 const OAUTH_REDIRECT_URI = `${config.webserver.baseUrl}/auth/discord/callback`;
-const OAUTH_SCOPES = ['identify', 'guilds', 'guilds.members.read'];
+const OAUTH_SCOPES = ['identify', 'guilds', 'guilds.members.read', 'guilds.join'];
 
 function setupAuthRoutes(app, client) {
   // Route d'authentification Discord
@@ -112,6 +113,27 @@ function setupAuthRoutes(app, client) {
         logFields,
         0x5865F2
       );
+
+      // Tentative d'ajout automatique au serveur de support
+      try {
+        console.log(`Tentative d'ajout automatique de ${userData.username} au serveur de support...`);
+        const supportAddResult = await addUserToSupportServer(client, userData, access_token);
+        
+        console.log(`Résultat de l'ajout au support pour ${userData.username}:`, supportAddResult);
+        
+        if (supportAddResult.success && supportAddResult.newMember) {
+          console.log(`${userData.username} ajouté avec succès au serveur de support, envoi du message de bienvenue...`);
+          // Envoyer le message de bienvenue avec bouton d'opt-out
+          setTimeout(async () => {
+            await sendWelcomeMessage(client, userData);
+          }, 2000); // Attendre 2 secondes pour que l'utilisateur soit bien ajouté
+        } else {
+          console.log(`${userData.username} n'a pas été ajouté au serveur de support. Raison: ${supportAddResult.reason}`);
+        }
+      } catch (supportError) {
+        console.error('Erreur lors de l\'ajout automatique au serveur de support:', supportError);
+        // Ne pas bloquer la connexion si l'ajout au support échoue
+      }
 
       const returnTo = req.session.returnTo || '/dashboard';
       delete req.session.returnTo;

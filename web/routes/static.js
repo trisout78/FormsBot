@@ -24,8 +24,16 @@ function setupStaticRoutes(app, client) {
     res.sendFile(path.join(__dirname, '../../public', 'premium.html'));
   });
 
+  app.get('/support-preferences', isAuthenticated, (req, res) => {
+    res.sendFile(path.join(__dirname, '../../public', 'support-preferences.html'));
+  });
+
   app.get('/webhook-status', isAuthenticated, (req, res) => {
     res.sendFile(path.join(__dirname, '../../public', 'webhook-status.html'));
+  });
+
+  app.get('/support-preferences', isAuthenticated, (req, res) => {
+    res.sendFile(path.join(__dirname, '../../public', 'support-preferences.html'));
   });
 
   // Routes publiques

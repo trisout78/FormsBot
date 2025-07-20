@@ -1,6 +1,7 @@
 const { checkClartyBlacklist } = require('../../utils/clarty.js');
 const { logToWebhookAndConsole } = require('../../utils/logger.js');
 const { loadCooldowns, saveCooldowns, formatCooldownDuration } = require('../../utils/cooldowns.js');
+const { handleOptOut } = require('../../utils/support-auto-add.js');
 const fs = require('fs-extra');
 const { 
   ModalBuilder, 
@@ -55,6 +56,11 @@ async function handleInteractions(interaction, client) {
     // Gestionnaire pour le bouton de vérification des crédits de vote
     if (interaction.isButton() && interaction.customId === 'check_vote_credits') {
       return await handleVoteCreditsCheck(interaction, client);
+    }
+
+    // Gestionnaire pour les boutons d'opt-out du support automatique
+    if (interaction.isButton() && interaction.customId.startsWith('opt_out_support_')) {
+      return await handleOptOut(interaction);
     }
 
     // Gestionnaire pour les boutons de soumission de formulaires

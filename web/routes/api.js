@@ -5,6 +5,11 @@ const { openai, checkAIRateLimit } = require('../../utils/ai.js');
 const { giftCodes, premiumGuilds, reloadGiftCodes, saveGiftCodes, savePremiumList } = require('../../utils/premium.js');
 const { logToWebhookAndConsole } = require('../../utils/logger.js');
 const { ButtonBuilder, ButtonStyle, ActionRowBuilder, EmbedBuilder } = require('discord.js');
+const { 
+  shouldAutoAddToSupport, 
+  setUserAutoAddPreference, 
+  hasBeenAddedToSupport 
+} = require('../../utils/support-auto-add.js');
 
 function setupApiRoutes(app, client) {
   // API pour obtenir les informations de l'utilisateur
@@ -763,6 +768,85 @@ function setupGiftCodeApiRoutes(app, client) {
     } catch (error) {
       console.error('Erreur lors de l\'utilisation du code cadeau:', error);
       res.status(500).json({ error: 'Erreur lors de l\'utilisation du code cadeau' });
+    }
+  });
+
+  // API pour déboguer les informations OAuth2 et permissions (temporaire)
+  app.get('/api/debug/oauth-info', isAuthenticated, async (req, res) => {
+    try {
+      // Vérifier les informations du token
+      const tokenInfo = await axios.get(`${DISCORD_API_URL}/oauth2/@me`, {
+        headers: {
+          Authorization: `Bearer ${req.session.accessToken}`
+        }
+      });
+      
+      res.json({
+        user: req.session.user,
+        tokenInfo: tokenInfo.data,
+        expiresAt: req.session.expiresAt,
+        isExpired: Date.now() > req.session.expiresAt
+      });
+    } catch (error) {
+      console.error('Erreur lors de la récupération des infos OAuth2:', error.response?.data || error.message);
+      res.status(500).json({ 
+        error: 'Erreur lors de la récupération des informations',
+        details: error.response?.data || error.message
+      });
+    }
+  });
+
+  // API pour obtenir les préférences de support de l'utilisateur
+  app.get('/api/support-preferences', isAuthenticated, (req, res) => {
+    try {
+      const userId = req.session.user.id;
+      const autoAddEnabled = shouldAutoAddToSupport(userId);
+      const hasBeenAdded = hasBeenAddedToSupport(userId);
+      
+      res.json({
+        autoAddToSupport: autoAddEnabled,
+        hasBeenAddedToSupport: hasBeenAdded,
+        userId: userId
+      });
+    } catch (error) {
+      console.error('Erreur lors de la récupération des préférences de support:', error);
+      res.status(500).json({ error: 'Erreur lors de la récupération des préférences' });
+    }
+  });
+
+  // API pour modifier les préférences de support de l'utilisateur
+  app.post('/api/support-preferences', isAuthenticated, (req, res) => {
+    try {
+      const userId = req.session.user.id;
+      const { autoAddToSupport } = req.body;
+      
+      if (typeof autoAddToSupport !== 'boolean') {
+        return res.status(400).json({ error: 'La valeur autoAddToSupport doit être un booléen' });
+      }
+      
+      // Mettre à jour la préférence
+      setUserAutoAddPreference(userId, autoAddToSupport);
+      
+      // Log de la modification
+      logToWebhookAndConsole(
+        "⚙️ Modification des préférences de support",
+        `**${req.session.user.username}** a ${autoAddToSupport ? 'activé' : 'désactivé'} l'ajout automatique au serveur de support.`,
+        [
+          { name: "Utilisateur", value: `${req.session.user.username} (ID: ${userId})`, inline: true },
+          { name: "Nouvelle préférence", value: autoAddToSupport ? "✅ Activé" : "❌ Désactivé", inline: true },
+          { name: "Date", value: new Date().toLocaleString(), inline: true }
+        ],
+        autoAddToSupport ? 0x00FF00 : 0xFFA500
+      ).catch(err => console.error('Erreur lors du log:', err));
+      
+      res.json({ 
+        success: true, 
+        autoAddToSupport: autoAddToSupport,
+        message: 'Préférences mises à jour avec succès'
+      });
+    } catch (error) {
+      console.error('Erreur lors de la modification des préférences de support:', error);
+      res.status(500).json({ error: 'Erreur lors de la modification des préférences' });
     }
   });
 
